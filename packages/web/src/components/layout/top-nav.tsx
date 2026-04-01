@@ -11,6 +11,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { signOut } from "@/app/(auth)/actions";
 
 export function TopNav() {
   return (
@@ -48,10 +49,14 @@ export function TopNav() {
             <p className="text-xs text-muted-foreground">admin@marca.com</p>
           </div>
           <DropdownMenuSeparator />
-          <DropdownMenuItem>
-            <LogOut className="mr-2 h-4 w-4" />
-            Sair
-          </DropdownMenuItem>
+          <form action={signOut}>
+            <button type="submit" className="w-full">
+              <DropdownMenuItem>
+                <LogOut className="mr-2 h-4 w-4" />
+                Sair
+              </DropdownMenuItem>
+            </button>
+          </form>
         </DropdownMenuContent>
       </DropdownMenu>
     </header>
