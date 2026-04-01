@@ -1,5 +1,6 @@
 import { PageHeader } from "@/components/shared/page-header";
 import { TeamSection } from "./team-section";
+import { IntegrationsSection } from "./integrations-section";
 
 export default function SettingsPage() {
   return (
@@ -9,6 +10,7 @@ export default function SettingsPage() {
         description="Integrações, equipe e conta"
       />
 
+      <IntegrationsSection />
       <TeamSection />
     </div>
   );
