@@ -28,6 +28,7 @@ import {
 import { ArrowLeft, AtSign, Plus, Save, Check } from "lucide-react";
 import { getInfluencer, updateInfluencer, type Influencer } from "../actions";
 import { getGrowthHistory, addGrowthEntry, type GrowthEntry } from "./actions";
+import { getInfluencerMetrics, type InfluencerMetrics } from "@/lib/metrics";
 
 function GrowthChart({ data }: { data: GrowthEntry[] }) {
   if (data.length === 0) {
@@ -109,6 +110,7 @@ export default function InfluencerProfilePage() {
   const id = params.id as string;
 
   const [influencer, setInfluencer] = useState<Influencer | null>(null);
+  const [metrics, setMetrics] = useState<InfluencerMetrics | null>(null);
   const [growth, setGrowth] = useState<GrowthEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -131,10 +133,12 @@ export default function InfluencerProfilePage() {
 
   const loadData = useCallback(async () => {
     setLoading(true);
-    const [infResult, growthResult] = await Promise.all([
+    const [infResult, growthResult, metricsResult] = await Promise.all([
       getInfluencer(id),
       getGrowthHistory(id),
+      getInfluencerMetrics(id),
     ]);
+    setMetrics(metricsResult);
     if (infResult.data) {
       const inf = infResult.data;
       setInfluencer(inf);
@@ -219,16 +223,36 @@ export default function InfluencerProfilePage() {
         <PageHeader title={influencer.name} description={`Cupom: ${influencer.coupon_code}`} />
       </div>
 
-      {/* KPI Cards - Placeholder for Epic 6 */}
+      {/* KPI Cards */}
       <div className="grid gap-4 md:grid-cols-4">
-        {["Total Vendas", "Receita Total", "ROI Medio", "Campanhas"].map((label) => (
-          <Card key={label}>
-            <CardContent className="pt-6">
-              <p className="text-sm text-muted-foreground">{label}</p>
-              <p className="mt-1 text-2xl font-bold text-muted-foreground/40">—</p>
-            </CardContent>
-          </Card>
-        ))}
+        <Card>
+          <CardContent className="pt-6">
+            <p className="text-sm text-muted-foreground">Total Vendas</p>
+            <p className="mt-1 text-2xl font-bold">{metrics?.total_orders ?? "—"}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <p className="text-sm text-muted-foreground">Receita Total</p>
+            <p className="mt-1 text-2xl font-bold">
+              {metrics ? `R$ ${Number(metrics.total_revenue).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` : "—"}
+            </p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <p className="text-sm text-muted-foreground">Lucro Total</p>
+            <p className="mt-1 text-2xl font-bold">
+              {metrics ? `R$ ${Number(metrics.total_profit).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` : "—"}
+            </p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <p className="text-sm text-muted-foreground">Campanhas</p>
+            <p className="mt-1 text-2xl font-bold">{metrics?.campaigns_count ?? "—"}</p>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Edit Form */}

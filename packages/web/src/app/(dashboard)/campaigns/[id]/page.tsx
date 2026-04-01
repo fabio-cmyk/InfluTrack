@@ -24,6 +24,7 @@ import {
   type Campaign, type CampaignInfluencer,
 } from "../actions";
 import { getInfluencers, type Influencer } from "../../influencers/actions";
+import { getCampaignMetrics, getCampaignInfluencerMetrics, type CampaignMetrics, type CampaignInfluencerMetrics } from "@/lib/metrics";
 
 export default function CampaignDetailPage() {
   const params = useParams();
@@ -31,6 +32,8 @@ export default function CampaignDetailPage() {
 
   const [campaign, setCampaign] = useState<Campaign | null>(null);
   const [linked, setLinked] = useState<CampaignInfluencer[]>([]);
+  const [campMetrics, setCampMetrics] = useState<CampaignMetrics | null>(null);
+  const [infMetrics, setInfMetrics] = useState<CampaignInfluencerMetrics[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -52,10 +55,14 @@ export default function CampaignDetailPage() {
 
   const loadData = useCallback(async () => {
     setLoading(true);
-    const [cResult, iResult] = await Promise.all([
+    const [cResult, iResult, mResult, imResult] = await Promise.all([
       getCampaign(id),
       getCampaignInfluencers(id),
+      getCampaignMetrics(id),
+      getCampaignInfluencerMetrics(id),
     ]);
+    setCampMetrics(mResult);
+    setInfMetrics(imResult);
     if (cResult.data) {
       const c = cResult.data;
       setCampaign(c);
@@ -168,16 +175,13 @@ export default function CampaignDetailPage() {
         </Card>
       )}
 
-      {/* KPI Cards - Placeholder */}
+      {/* KPI Cards */}
       <div className="grid gap-4 md:grid-cols-5">
-        {["Vendas", "Receita", "Custo", "Lucro", "ROI"].map((label) => (
-          <Card key={label}>
-            <CardContent className="pt-6">
-              <p className="text-sm text-muted-foreground">{label}</p>
-              <p className="mt-1 text-2xl font-bold text-muted-foreground/40">—</p>
-            </CardContent>
-          </Card>
-        ))}
+        <Card><CardContent className="pt-6"><p className="text-sm text-muted-foreground">Vendas</p><p className="mt-1 text-2xl font-bold">{campMetrics?.total_orders ?? "—"}</p></CardContent></Card>
+        <Card><CardContent className="pt-6"><p className="text-sm text-muted-foreground">Receita</p><p className="mt-1 text-2xl font-bold">{campMetrics ? `R$ ${Number(campMetrics.total_revenue).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` : "—"}</p></CardContent></Card>
+        <Card><CardContent className="pt-6"><p className="text-sm text-muted-foreground">Custo</p><p className="mt-1 text-2xl font-bold">{campMetrics ? `R$ ${Number(campMetrics.total_cost).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` : "—"}</p></CardContent></Card>
+        <Card><CardContent className="pt-6"><p className="text-sm text-muted-foreground">Lucro</p><p className="mt-1 text-2xl font-bold">{campMetrics ? `R$ ${Number(campMetrics.total_profit).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` : "—"}</p></CardContent></Card>
+        <Card><CardContent className="pt-6"><p className="text-sm text-muted-foreground">ROI</p><p className="mt-1 text-2xl font-bold">{campMetrics && campaign?.budget ? `${((Number(campMetrics.total_profit) / Number(campaign.budget)) * 100).toFixed(1)}%` : "—"}</p></CardContent></Card>
       </div>
 
       {/* Edit Form */}
@@ -230,22 +234,25 @@ export default function CampaignDetailPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {linked.map((inf) => (
-                  <TableRow key={inf.id}>
-                    <TableCell>
-                      <Link href={`/influencers/${inf.influencer_id}`} className="font-medium text-primary hover:underline">{inf.name}</Link>
-                    </TableCell>
-                    <TableCell><code className="rounded bg-muted px-1.5 py-0.5 text-xs">{inf.coupon_code}</code></TableCell>
-                    <TableCell className="text-muted-foreground/40">—</TableCell>
-                    <TableCell className="text-muted-foreground/40">—</TableCell>
-                    <TableCell className="text-muted-foreground/40">—</TableCell>
-                    <TableCell>
-                      <Button variant="ghost" size="icon" onClick={() => handleRemove(inf.id)}>
-                        <Trash2 className="h-4 w-4 text-destructive" />
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                {linked.map((inf) => {
+                  const im = infMetrics.find((m) => m.influencer_id === inf.influencer_id);
+                  return (
+                    <TableRow key={inf.id}>
+                      <TableCell>
+                        <Link href={`/influencers/${inf.influencer_id}`} className="font-medium text-primary hover:underline">{inf.name}</Link>
+                      </TableCell>
+                      <TableCell><code className="rounded bg-muted px-1.5 py-0.5 text-xs">{inf.coupon_code}</code></TableCell>
+                      <TableCell>{im?.total_orders ?? "—"}</TableCell>
+                      <TableCell>{im ? `R$ ${Number(im.total_revenue).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` : "—"}</TableCell>
+                      <TableCell>{im && campaign?.budget && linked.length ? `${((Number(im.total_profit) / (Number(campaign.budget) / linked.length)) * 100).toFixed(1)}%` : "—"}</TableCell>
+                      <TableCell>
+                        <Button variant="ghost" size="icon" onClick={() => handleRemove(inf.id)}>
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           )}
