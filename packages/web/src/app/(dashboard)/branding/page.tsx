@@ -1,21 +1,17 @@
 import { PageHeader } from "@/components/shared/page-header";
-import { Card, CardContent } from "@/components/ui/card";
+import { BrandIdentityForm } from "./brand-identity-form";
+import { VisualIdentityForm } from "./visual-identity-form";
 
 export default function BrandingPage() {
   return (
-    <div>
+    <div className="space-y-6">
       <PageHeader
         title="Branding"
         description="Identidade e assets da sua marca"
       />
 
-      <Card>
-        <CardContent className="flex flex-col items-center justify-center py-16 text-center">
-          <p className="text-muted-foreground text-sm">
-            Configure a identidade visual e os assets da sua marca.
-          </p>
-        </CardContent>
-      </Card>
+      <BrandIdentityForm />
+      <VisualIdentityForm />
     </div>
   );
 }
