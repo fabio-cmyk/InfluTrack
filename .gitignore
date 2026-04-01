@@ -1,0 +1,51 @@
+
+
+# Environment & Secrets (AIOS)
+.env
+.env.local
+.env.*.local
+*.key
+*.pem
+
+# Dependencies (AIOS)
+node_modules/
+node_modules
+.pnp
+.pnp.js
+
+# Build & Logs (AIOS)
+dist/
+build/
+*.log
+logs/
+coverage/
+
+# Next.js
+.next/
+out/
+
+# Vercel
+.vercel
+
+# Turbo
+.turbo
+
+# Supabase
+supabase/.temp/
+supabase/.branches/
+
+# IDE & OS (AIOS)
+.DS_Store
+Thumbs.db
+desktop.ini
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# AIOS Local (AIOS)
+.aios-core/local/
+.claude/settings.local.json
+.aios/install-log.txt
+.aios/handoffs/
+.aios/logs/
