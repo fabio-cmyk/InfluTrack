@@ -165,6 +165,47 @@ export async function getTikTokVideos(handle: string, apiKey: string, count = 12
 }
 
 // ============================================================
+// COMMENTS ENDPOINTS — For AI analysis
+// ============================================================
+
+export type ScrapedComment = {
+  username: string;
+  text: string;
+  likes: number;
+  timestamp: number;
+};
+
+export async function getInstagramComments(shortcode: string, apiKey: string, count = 20): Promise<ScrapedComment[]> {
+  const data = await apiCall(`/v2/instagram/post/comments?shortcode=${encodeURIComponent(shortcode)}&count=${count}`, apiKey);
+  const comments = (data.comments as Array<Record<string, unknown>>) || [];
+
+  return comments.slice(0, count).map((c) => {
+    const user = (c.user as Record<string, unknown>) || {};
+    return {
+      username: (user.username as string) || "",
+      text: ((c.text as string) || "").slice(0, 200),
+      likes: (c.comment_like_count as number) || 0,
+      timestamp: (c.created_at as number) || 0,
+    };
+  });
+}
+
+export async function getTikTokComments(videoId: string, apiKey: string, count = 20): Promise<ScrapedComment[]> {
+  const data = await apiCall(`/v1/tiktok/video/comments?video_id=${encodeURIComponent(videoId)}&count=${count}`, apiKey);
+  const comments = (data.comments as Array<Record<string, unknown>>) || [];
+
+  return comments.slice(0, count).map((c) => {
+    const user = (c.user as Record<string, unknown>) || {};
+    return {
+      username: (user.unique_id as string) || (user.nickname as string) || "",
+      text: ((c.text as string) || "").slice(0, 200),
+      likes: (c.digg_count as number) || 0,
+      timestamp: (c.create_time as number) || 0,
+    };
+  });
+}
+
+// ============================================================
 // MINING — Search content by keyword, extract creators
 // ============================================================
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { PageHeader } from "@/components/shared/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -11,7 +11,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import { Search, ExternalLink, Heart, MessageCircle, Eye, CheckCircle, UserPlus, History } from "lucide-react";
+import { Search, ExternalLink, Heart, MessageCircle, Eye, CheckCircle, UserPlus, History, Sparkles, Loader2 } from "lucide-react";
 import { EmptyState } from "@/components/shared/empty-state";
 import { analyzeProfile, getAnalysisHistory, type AnalysisResult, type AnalysisEntry } from "./actions";
 
@@ -19,6 +19,29 @@ function fmtNum(n: number): string {
   if (n >= 1000000) return `${(n / 1000000).toFixed(1)}M`;
   if (n >= 1000) return `${(n / 1000).toFixed(1)}K`;
   return n.toString();
+}
+
+function proxyImg(url: string): string {
+  if (!url) return "";
+  return `/api/proxy-image?url=${encodeURIComponent(url)}`;
+}
+
+function renderMarkdown(text: string): string {
+  return text
+    .replace(/^### (.+)$/gm, '<h3 class="text-base font-bold mt-4 mb-2">$1</h3>')
+    .replace(/^## (.+)$/gm, '<h2 class="text-lg font-bold mt-6 mb-3 text-primary">$1</h2>')
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.+?)\*/g, '<em>$1</em>')
+    .replace(/^\|(.+)\|$/gm, (match) => {
+      const cells = match.split("|").filter(Boolean).map(c => c.trim());
+      if (cells.every(c => /^[-:]+$/.test(c))) return "";
+      const tag = match.includes("---") ? "th" : "td";
+      return `<tr>${cells.map(c => `<${tag} class="border border-border px-3 py-1.5 text-sm">${c}</${tag}>`).join("")}</tr>`;
+    })
+    .replace(/^- (.+)$/gm, '<li class="text-sm text-muted-foreground ml-4 list-disc">$1</li>')
+    .replace(/^(\d+)\. (.+)$/gm, '<li class="text-sm text-muted-foreground ml-4 list-decimal">$2</li>')
+    .replace(/\n\n/g, '<div class="h-3"></div>')
+    .replace(/\n/g, "<br/>");
 }
 
 const FIT_COLORS: Record<string, { label: string; ring: string; text: string; bg: string }> = {
@@ -34,7 +57,11 @@ export default function AnalysisPage() {
   const [history, setHistory] = useState<AnalysisEntry[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<"posts" | "reels" | "strengths">("posts");
+  const [activeTab, setActiveTab] = useState<"posts" | "reels" | "strengths" | "ai">("posts");
+  const [aiMarkdown, setAiMarkdown] = useState("");
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
+  const aiContainerRef = useRef<HTMLDivElement>(null);
 
   const loadHistory = useCallback(async () => {
     const { data } = await getAnalysisHistory();
@@ -55,6 +82,75 @@ export default function AnalysisPage() {
     if (data) setResult(data);
     setLoading(false);
     loadHistory();
+  }
+
+  async function handleGenerateAI() {
+    if (!result) return;
+    setAiLoading(true);
+    setAiError(null);
+    setAiMarkdown("");
+    setActiveTab("ai");
+
+    try {
+      const res = await fetch("/api/analysis/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          profile: result.profile,
+          posts: result.posts.slice(0, 10).map(p => ({
+            type: p.type,
+            caption: p.caption.slice(0, 280),
+            like_count: p.like_count,
+            comment_count: p.comment_count,
+            play_count: p.play_count,
+          })),
+          comments: [],
+          brandKeywords: [],
+        }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Erro na API");
+      }
+
+      const reader = res.body?.getReader();
+      if (!reader) throw new Error("Streaming não suportado");
+
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
+
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          try {
+            const data = JSON.parse(line.slice(6));
+            if (data.done) break;
+            if (data.error) throw new Error(data.error);
+            if (data.text) {
+              setAiMarkdown(prev => prev + data.text);
+              if (aiContainerRef.current) {
+                aiContainerRef.current.scrollTop = aiContainerRef.current.scrollHeight;
+              }
+            }
+          } catch (e) {
+            if (e instanceof SyntaxError) continue;
+            throw e;
+          }
+        }
+      }
+    } catch (err) {
+      setAiError(String(err));
+    } finally {
+      setAiLoading(false);
+    }
   }
 
   const fit = result ? FIT_COLORS[result.fit_classification] || FIT_COLORS.neutral : null;
@@ -115,7 +211,7 @@ export default function AnalysisPage() {
                 <div className="flex items-center gap-3">
                   {result.profile.profile_pic ? (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={result.profile.profile_pic} alt={result.profile.display_name} className="h-14 w-14 rounded-full object-cover border-2 border-border" />
+                    <img src={proxyImg(result.profile.profile_pic)} alt={result.profile.display_name} className="h-14 w-14 rounded-full object-cover border-2 border-border" />
                   ) : (
                     <div className="h-14 w-14 rounded-full bg-gradient-to-br from-primary to-[oklch(0.6_0.18_350)] flex items-center justify-center text-white font-bold text-lg">
                       {result.profile.display_name[0]}
@@ -239,7 +335,7 @@ export default function AnalysisPage() {
           <Card className="shadow-sm">
             <CardContent className="pt-0">
               <div className="flex border-b -mx-6 px-6">
-                {([["posts", "Posts Recentes"], ["reels", "Reels & Videos"], ["strengths", "Analise"]] as const).map(([key, label]) => (
+                {([["posts", "Posts Recentes"], ["reels", "Reels & Videos"], ["strengths", "Analise"], ["ai", "Analise IA"]] as const).map(([key, label]) => (
                   <button
                     key={key}
                     onClick={() => setActiveTab(key)}
@@ -329,6 +425,72 @@ export default function AnalysisPage() {
                             </li>
                           ))}
                         </ul>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {activeTab === "ai" && (
+                  <div className="space-y-4">
+                    {!aiMarkdown && !aiLoading && !aiError && (
+                      <div className="flex flex-col items-center justify-center py-12 space-y-4">
+                        <div className="h-16 w-16 rounded-full bg-gradient-to-br from-primary/20 to-[oklch(0.6_0.18_350)]/20 flex items-center justify-center">
+                          <Sparkles className="h-8 w-8 text-primary" />
+                        </div>
+                        <div className="text-center space-y-1">
+                          <p className="font-bold text-sm">Analise com Inteligencia Artificial</p>
+                          <p className="text-xs text-muted-foreground max-w-md">
+                            Claude analisa o perfil como um analista senior de marketing de influencia,
+                            gerando briefing, score detalhado, analise de conteudo e recomendacao final.
+                          </p>
+                        </div>
+                        <Button
+                          onClick={handleGenerateAI}
+                          className="bg-gradient-to-r from-primary to-[oklch(0.6_0.18_350)] text-white"
+                        >
+                          <Sparkles className="mr-2 h-4 w-4" />
+                          Gerar Analise IA
+                        </Button>
+                      </div>
+                    )}
+
+                    {aiLoading && !aiMarkdown && (
+                      <div className="flex items-center justify-center py-12 space-y-3">
+                        <div className="flex flex-col items-center gap-3">
+                          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                          <p className="text-sm text-muted-foreground">Claude esta analisando o perfil...</p>
+                        </div>
+                      </div>
+                    )}
+
+                    {aiError && (
+                      <div className="rounded-md bg-destructive/10 p-4 text-sm text-destructive">
+                        {aiError}
+                        <Button variant="outline" size="sm" className="ml-3" onClick={handleGenerateAI}>
+                          Tentar novamente
+                        </Button>
+                      </div>
+                    )}
+
+                    {aiMarkdown && (
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <Sparkles className="h-4 w-4 text-primary" />
+                            <span className="text-sm font-bold">Relatorio IA</span>
+                            {aiLoading && <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />}
+                          </div>
+                          {!aiLoading && (
+                            <Button variant="ghost" size="sm" onClick={handleGenerateAI}>
+                              Regenerar
+                            </Button>
+                          )}
+                        </div>
+                        <div
+                          ref={aiContainerRef}
+                          className="prose prose-sm max-w-none max-h-[600px] overflow-y-auto rounded-lg border border-border bg-muted/30 p-6"
+                          dangerouslySetInnerHTML={{ __html: renderMarkdown(aiMarkdown) }}
+                        />
                       </div>
                     )}
                   </div>
