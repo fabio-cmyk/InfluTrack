@@ -125,11 +125,19 @@ export default function InfluencerProfilePage() {
   const [phone, setPhone] = useState("");
   const [ig, setIg] = useState("");
   const [tt, setTt] = useState("");
-  const [yt, setYt] = useState("");
-  const [city, setCity] = useState("");
-  const [state, setState] = useState("");
   const [niche, setNiche] = useState("");
   const [coupon, setCoupon] = useState("");
+  const [status, setStatusField] = useState("active");
+  const [utmMedium, setUtmMedium] = useState("");
+  const [size, setSize] = useState("");
+  const [origin, setOrigin] = useState("");
+  const [commissionType, setCommissionType] = useState("percentage");
+  const [commissionRate, setCommissionRate] = useState("0");
+  const [monthlyFee, setMonthlyFee] = useState("0");
+  const [bonusRules, setBonusRules] = useState("");
+  const [pix, setPix] = useState("");
+  const [address, setAddress] = useState("");
+  const [paymentInfo, setPaymentInfo] = useState("");
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -147,11 +155,19 @@ export default function InfluencerProfilePage() {
       setPhone(inf.phone || "");
       setIg(inf.instagram_handle || "");
       setTt(inf.tiktok_handle || "");
-      setYt(inf.youtube_handle || "");
-      setCity(inf.city || "");
-      setState(inf.state || "");
       setNiche(inf.niche || "");
       setCoupon(inf.coupon_code);
+      setStatusField(inf.status || "active");
+      setUtmMedium(inf.utm_medium || "");
+      setSize(inf.size || "");
+      setOrigin(inf.origin || "");
+      setCommissionType(inf.commission_type || "percentage");
+      setCommissionRate(String(inf.commission_rate || 0));
+      setMonthlyFee(String(inf.monthly_fee || 0));
+      setBonusRules(inf.bonus_rules || "");
+      setPix(inf.pix_key || "");
+      setAddress(inf.address || "");
+      setPaymentInfo(inf.payment_info || "");
     }
     setGrowth(growthResult.data);
     setLoading(false);
@@ -167,8 +183,12 @@ export default function InfluencerProfilePage() {
     setSaving(true);
     const result = await updateInfluencer(id, {
       name, email, phone,
-      instagram_handle: ig, tiktok_handle: tt, youtube_handle: yt,
-      city, state, niche, coupon_code: coupon,
+      instagram_handle: ig, tiktok_handle: tt,
+      niche, coupon_code: coupon,
+      status: status, utm_medium: utmMedium, size, origin,
+      commission_type: commissionType, commission_rate: Number(commissionRate),
+      monthly_fee: Number(monthlyFee), bonus_rules: bonusRules,
+      pix_key: pix, address, payment_info: paymentInfo,
     });
     if (result.error) {
       setError(result.error);
@@ -267,23 +287,55 @@ export default function InfluencerProfilePage() {
           {error && (
             <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">{error}</div>
           )}
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid gap-4 md:grid-cols-3">
             <div className="space-y-2"><Label>Nome</Label><Input value={name} onChange={(e) => setName(e.target.value)} /></div>
             <div className="space-y-2"><Label>Cupom</Label><Input value={coupon} onChange={(e) => setCoupon(e.target.value)} className="uppercase" /></div>
+            <div className="space-y-2">
+              <Label>Status</Label>
+              <select value={status} onChange={(e) => setStatusField(e.target.value)} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
+                <option value="active">Ativa</option>
+                <option value="inactive">Inativa</option>
+              </select>
+            </div>
+          </div>
+          <div className="grid gap-4 md:grid-cols-3">
+            <div className="space-y-2"><Label>UTM Medium</Label><Input value={utmMedium} onChange={(e) => setUtmMedium(e.target.value)} /></div>
+            <div className="space-y-2"><Label>Tamanho</Label>
+              <select value={size} onChange={(e) => setSize(e.target.value)} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
+                <option value="">Selecionar</option>
+                <option value="pequena">Pequena</option>
+                <option value="micro">Micro</option>
+                <option value="nano">Nano</option>
+                <option value="mid">Mid</option>
+                <option value="macro">Macro</option>
+                <option value="celebridade">Celebridade</option>
+              </select>
+            </div>
+            <div className="space-y-2"><Label>Nicho</Label><Input value={niche} onChange={(e) => setNiche(e.target.value)} /></div>
+          </div>
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-2"><Label><AtSign className="inline h-3 w-3 mr-1" />Instagram</Label><Input value={ig} onChange={(e) => setIg(e.target.value)} /></div>
+            <div className="space-y-2"><Label>TikTok</Label><Input value={tt} onChange={(e) => setTt(e.target.value)} /></div>
+          </div>
+          <div className="grid gap-4 md:grid-cols-4">
+            <div className="space-y-2"><Label>Tipo Comissao</Label>
+              <select value={commissionType} onChange={(e) => setCommissionType(e.target.value)} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
+                <option value="percentage">Percentual</option>
+                <option value="fixed">Fixo por venda</option>
+              </select>
+            </div>
+            <div className="space-y-2"><Label>Comissao ({commissionType === "percentage" ? "%" : "R$"})</Label><Input value={commissionRate} onChange={(e) => setCommissionRate(e.target.value)} type="number" step="0.01" /></div>
+            <div className="space-y-2"><Label>Fee Mensal (R$)</Label><Input value={monthlyFee} onChange={(e) => setMonthlyFee(e.target.value)} type="number" step="0.01" /></div>
+            <div className="space-y-2"><Label>Regras Bonus</Label><Input value={bonusRules} onChange={(e) => setBonusRules(e.target.value)} /></div>
           </div>
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2"><Label>E-mail</Label><Input value={email} onChange={(e) => setEmail(e.target.value)} type="email" /></div>
-            <div className="space-y-2"><Label>Telefone</Label><Input value={phone} onChange={(e) => setPhone(e.target.value)} /></div>
+            <div className="space-y-2"><Label>Celular</Label><Input value={phone} onChange={(e) => setPhone(e.target.value)} /></div>
           </div>
           <div className="grid gap-4 md:grid-cols-3">
-            <div className="space-y-2"><Label><AtSign className="inline h-3 w-3 mr-1" />Instagram</Label><Input value={ig} onChange={(e) => setIg(e.target.value)} /></div>
-            <div className="space-y-2"><Label>TikTok</Label><Input value={tt} onChange={(e) => setTt(e.target.value)} /></div>
-            <div className="space-y-2"><Label>YouTube</Label><Input value={yt} onChange={(e) => setYt(e.target.value)} /></div>
-          </div>
-          <div className="grid gap-4 md:grid-cols-3">
-            <div className="space-y-2"><Label>Cidade</Label><Input value={city} onChange={(e) => setCity(e.target.value)} /></div>
-            <div className="space-y-2"><Label>Estado</Label><Input value={state} onChange={(e) => setState(e.target.value)} /></div>
-            <div className="space-y-2"><Label>Nicho</Label><Input value={niche} onChange={(e) => setNiche(e.target.value)} /></div>
+            <div className="space-y-2"><Label>PIX</Label><Input value={pix} onChange={(e) => setPix(e.target.value)} /></div>
+            <div className="space-y-2"><Label>Endereco</Label><Input value={address} onChange={(e) => setAddress(e.target.value)} /></div>
+            <div className="space-y-2"><Label>Dados Pagamento</Label><Input value={paymentInfo} onChange={(e) => setPaymentInfo(e.target.value)} /></div>
           </div>
         </CardContent>
       </Card>

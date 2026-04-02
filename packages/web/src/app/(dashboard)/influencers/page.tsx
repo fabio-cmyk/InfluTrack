@@ -119,8 +119,10 @@ export default function InfluencersPage() {
                 <TableRow>
                   <TableHead>Nome</TableHead>
                   <TableHead>Handle</TableHead>
-                  <TableHead>Nicho</TableHead>
+                  <TableHead>Tamanho</TableHead>
                   <TableHead>Cupom</TableHead>
+                  <TableHead>Comissao</TableHead>
+                  <TableHead>Status</TableHead>
                   <TableHead className="w-[80px]">Acoes</TableHead>
                 </TableRow>
               </TableHeader>
@@ -139,8 +141,8 @@ export default function InfluencersPage() {
                       {getMainHandle(inf)}
                     </TableCell>
                     <TableCell>
-                      {inf.niche ? (
-                        <Badge variant="outline">{inf.niche}</Badge>
+                      {inf.size ? (
+                        <Badge variant="outline" className="uppercase text-xs">{inf.size}</Badge>
                       ) : (
                         "—"
                       )}
@@ -149,6 +151,16 @@ export default function InfluencersPage() {
                       <code className="rounded bg-muted px-1.5 py-0.5 text-xs">
                         {inf.coupon_code}
                       </code>
+                    </TableCell>
+                    <TableCell className="text-sm">
+                      {inf.commission_rate > 0
+                        ? inf.commission_type === "percentage" ? `${inf.commission_rate}%` : `R$ ${inf.commission_rate}`
+                        : "—"}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={inf.status === "active" ? "default" : "secondary"} className="text-xs">
+                        {inf.status === "active" ? "Ativa" : "Inativa"}
+                      </Badge>
                     </TableCell>
                     <TableCell>
                       <Button

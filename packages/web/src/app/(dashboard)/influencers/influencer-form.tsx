@@ -4,15 +4,14 @@ import { useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from "@/components/ui/dialog";
-import { createInfluencer } from "./actions";
+import { createInfluencer, type InfluencerFormData } from "./actions";
+
+const SIZES = ["pequena", "micro", "nano", "mid", "macro", "celebridade"] as const;
+const TABS = ["Basico", "Social", "Comissao", "Contato"] as const;
 
 export function InfluencerFormModal({
   open,
@@ -23,28 +22,65 @@ export function InfluencerFormModal({
   onOpenChange: (open: boolean) => void;
   onSuccess: () => void;
 }) {
+  const [tab, setTab] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
+  // Basico
+  const [name, setName] = useState("");
+  const [status, setStatus] = useState("active");
+  const [utmMedium, setUtmMedium] = useState("");
+  const [coupon, setCoupon] = useState("");
+  const [size, setSize] = useState("");
+  const [niche, setNiche] = useState("");
+  const [nicheInput, setNicheInput] = useState("");
+  const [origin, setOrigin] = useState("");
+
+  // Social
+  const [instagram, setInstagram] = useState("");
+  const [tiktok, setTiktok] = useState("");
+
+  // Comissao
+  const [commissionType, setCommissionType] = useState("percentage");
+  const [commissionRate, setCommissionRate] = useState("0");
+  const [monthlyFee, setMonthlyFee] = useState("0");
+  const [bonusRules, setBonusRules] = useState("");
+
+  // Contato
+  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
+  const [pix, setPix] = useState("");
+  const [address, setAddress] = useState("");
+  const [paymentInfo, setPaymentInfo] = useState("");
+
+  function reset() {
+    setTab(0); setName(""); setStatus("active"); setUtmMedium(""); setCoupon("");
+    setSize(""); setNiche(""); setOrigin(""); setInstagram(""); setTiktok("");
+    setCommissionType("percentage"); setCommissionRate("0"); setMonthlyFee("0");
+    setBonusRules(""); setEmail(""); setPhone(""); setPix(""); setAddress("");
+    setPaymentInfo(""); setError(null);
+  }
+
+  async function handleSubmit() {
+    if (!name || !coupon) {
+      setError("Nome e Cupom sao obrigatorios");
+      setTab(0);
+      return;
+    }
+
     setError(null);
     setLoading(true);
 
-    const fd = new FormData(e.currentTarget);
-    const result = await createInfluencer({
-      name: fd.get("name") as string,
-      email: fd.get("email") as string,
-      phone: fd.get("phone") as string,
-      instagram_handle: fd.get("instagram_handle") as string,
-      tiktok_handle: fd.get("tiktok_handle") as string,
-      youtube_handle: fd.get("youtube_handle") as string,
-      city: fd.get("city") as string,
-      state: fd.get("state") as string,
-      niche: fd.get("niche") as string,
-      coupon_code: fd.get("coupon_code") as string,
-    });
+    const formData: InfluencerFormData = {
+      name, status, utm_medium: utmMedium, coupon_code: coupon,
+      size, niche, origin,
+      instagram_handle: instagram, tiktok_handle: tiktok,
+      commission_type: commissionType, commission_rate: Number(commissionRate),
+      monthly_fee: Number(monthlyFee), bonus_rules: bonusRules,
+      email, phone, pix_key: pix, address, payment_info: paymentInfo,
+    };
 
+    const result = await createInfluencer(formData);
     if (result.error) {
       setError(result.error);
       setLoading(false);
@@ -52,85 +88,200 @@ export function InfluencerFormModal({
     }
 
     setLoading(false);
+    reset();
     onOpenChange(false);
     onSuccess();
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(o) => { if (!o) reset(); onOpenChange(o); }}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Adicionar Influencer</DialogTitle>
-          <DialogDescription>Preencha os dados do influencer.</DialogDescription>
+          <DialogTitle>Cadastrar Novo Influencer</DialogTitle>
+          <DialogDescription>Preencha os dados do influencer para comecar a rastrear suas vendas.</DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit}>
-          <div className="space-y-4 py-2 max-h-[60vh] overflow-y-auto">
-            {error && (
-              <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
-                {error}
-              </div>
-            )}
+        {/* Tabs */}
+        <div className="flex border-b mb-4">
+          {TABS.map((t, i) => (
+            <button
+              key={t}
+              onClick={() => setTab(i)}
+              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                tab === i ? "border-foreground text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {t}
+            </button>
+          ))}
+        </div>
 
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="name">Nome *</Label>
-                <Input id="name" name="name" required placeholder="Nome completo" />
+        <div className="min-h-[280px]">
+          {error && <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive mb-4">{error}</div>}
+
+          {/* Tab: Basico */}
+          {tab === 0 && (
+            <div className="space-y-4">
+              <div className="grid gap-4 grid-cols-2">
+                <div className="space-y-2">
+                  <Label>Nome *</Label>
+                  <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nome do influencer" />
+                </div>
+                <div className="space-y-2">
+                  <Label>Status</Label>
+                  <select value={status} onChange={(e) => setStatus(e.target.value)} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
+                    <option value="active">Ativa</option>
+                    <option value="inactive">Inativa</option>
+                  </select>
+                </div>
+              </div>
+              <div className="grid gap-4 grid-cols-2">
+                <div className="space-y-2">
+                  <Label>UTM Medium *</Label>
+                  <Input value={utmMedium} onChange={(e) => setUtmMedium(e.target.value)} placeholder="ex: mariasilva" />
+                </div>
+                <div className="space-y-2">
+                  <Label>Cupom *</Label>
+                  <Input value={coupon} onChange={(e) => setCoupon(e.target.value)} placeholder="ex: MARI10" className="uppercase" />
+                </div>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="coupon_code">Cupom *</Label>
-                <Input id="coupon_code" name="coupon_code" required placeholder="CUPOM10" className="uppercase" />
+                <Label>Tamanho</Label>
+                <div className="flex flex-wrap gap-2">
+                  {SIZES.map((s) => (
+                    <button
+                      key={s}
+                      type="button"
+                      onClick={() => setSize(size === s ? "" : s)}
+                      className={`px-3 py-1.5 rounded-md text-xs font-medium border transition-colors uppercase ${
+                        size === s ? "bg-foreground text-background border-foreground" : "bg-background text-foreground border-border hover:bg-accent"
+                      }`}
+                    >
+                      {s}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>Nicho (Tags)</Label>
+                <div className="flex gap-2">
+                  <Input
+                    value={nicheInput}
+                    onChange={(e) => setNicheInput(e.target.value)}
+                    placeholder="Digite um nicho e pressione Enter"
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && nicheInput.trim()) {
+                        e.preventDefault();
+                        setNiche(niche ? `${niche}, ${nicheInput.trim()}` : nicheInput.trim());
+                        setNicheInput("");
+                      }
+                    }}
+                  />
+                </div>
+                {niche && (
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    {niche.split(", ").map((n, i) => (
+                      <Badge key={i} variant="secondary" className="text-xs">{n}</Badge>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div className="space-y-2">
+                <Label>Origem da Descoberta</Label>
+                <Input value={origin} onChange={(e) => setOrigin(e.target.value)} placeholder="Ex: Indicacao, Mineracao, Instagram" />
               </div>
             </div>
+          )}
 
-            <div className="grid gap-4 md:grid-cols-2">
+          {/* Tab: Social */}
+          {tab === 1 && (
+            <div className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="email">E-mail</Label>
-                <Input id="email" name="email" type="email" placeholder="email@exemplo.com" />
+                <Label>Link do Perfil Instagram</Label>
+                <Input value={instagram} onChange={(e) => setInstagram(e.target.value)} placeholder="https://instagram.com/usuario" />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="phone">Telefone</Label>
-                <Input id="phone" name="phone" placeholder="(11) 99999-9999" />
+                <Label>Link do Perfil TikTok</Label>
+                <Input value={tiktok} onChange={(e) => setTiktok(e.target.value)} placeholder="https://tiktok.com/@usuario" />
+              </div>
+              <div className="rounded-md bg-muted p-3 text-sm text-muted-foreground">
+                Para adicionar insights historicos (Views Stories, Seguidores, Taxa de Engajamento), salve o influencer primeiro e depois edite para acessar o gerenciador de insights.
               </div>
             </div>
+          )}
 
-            <div className="grid gap-4 md:grid-cols-3">
-              <div className="space-y-2">
-                <Label htmlFor="instagram_handle">Instagram</Label>
-                <Input id="instagram_handle" name="instagram_handle" placeholder="@handle" />
+          {/* Tab: Comissao */}
+          {tab === 2 && (
+            <div className="space-y-4">
+              <div className="grid gap-4 grid-cols-2">
+                <div className="space-y-2">
+                  <Label>Tipo de Comissao</Label>
+                  <select value={commissionType} onChange={(e) => setCommissionType(e.target.value)} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
+                    <option value="percentage">Percentual</option>
+                    <option value="fixed">Fixo por venda</option>
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Comissao ({commissionType === "percentage" ? "%" : "R$"})</Label>
+                  <Input value={commissionRate} onChange={(e) => setCommissionRate(e.target.value)} type="number" step="0.01" min="0" />
+                </div>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="tiktok_handle">TikTok</Label>
-                <Input id="tiktok_handle" name="tiktok_handle" placeholder="@handle" />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="youtube_handle">YouTube</Label>
-                <Input id="youtube_handle" name="youtube_handle" placeholder="@channel" />
+              <div className="grid gap-4 grid-cols-2">
+                <div className="space-y-2">
+                  <Label>Fee Fixo Mensal (R$)</Label>
+                  <Input value={monthlyFee} onChange={(e) => setMonthlyFee(e.target.value)} type="number" step="0.01" min="0" />
+                </div>
+                <div className="space-y-2">
+                  <Label>Regras de Bonus</Label>
+                  <Input value={bonusRules} onChange={(e) => setBonusRules(e.target.value)} placeholder="ex: 50 pedidos = +R$300" />
+                </div>
               </div>
             </div>
+          )}
 
-            <div className="grid gap-4 md:grid-cols-3">
-              <div className="space-y-2">
-                <Label htmlFor="city">Cidade</Label>
-                <Input id="city" name="city" placeholder="Sao Paulo" />
+          {/* Tab: Contato */}
+          {tab === 3 && (
+            <div className="space-y-4">
+              <div className="grid gap-4 grid-cols-2">
+                <div className="space-y-2">
+                  <Label>E-mail</Label>
+                  <Input value={email} onChange={(e) => setEmail(e.target.value)} type="email" placeholder="email@exemplo.com" />
+                </div>
+                <div className="space-y-2">
+                  <Label>Celular</Label>
+                  <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="(11) 99999-9999" />
+                </div>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="state">Estado</Label>
-                <Input id="state" name="state" placeholder="SP" />
+                <Label>PIX</Label>
+                <Input value={pix} onChange={(e) => setPix(e.target.value)} placeholder="Chave PIX (CPF, CNPJ, e-mail ou telefone)" />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="niche">Nicho</Label>
-                <Input id="niche" name="niche" placeholder="Fitness, Beleza..." />
+                <Label>Endereco</Label>
+                <Input value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Endereco completo para envio de produtos" />
+              </div>
+              <div className="space-y-2">
+                <Label>Dados Adicionais para Pagamento</Label>
+                <Input value={paymentInfo} onChange={(e) => setPaymentInfo(e.target.value)} placeholder="CNPJ, dados bancarios, etc." />
               </div>
             </div>
+          )}
+        </div>
+
+        <DialogFooter className="flex justify-between">
+          <div className="flex gap-2">
+            {tab > 0 && <Button variant="outline" onClick={() => setTab(tab - 1)}>Anterior</Button>}
           </div>
-
-          <DialogFooter>
-            <Button type="submit" disabled={loading}>
-              {loading ? "Salvando..." : "Adicionar"}
-            </Button>
-          </DialogFooter>
-        </form>
+          <div className="flex gap-2">
+            {tab < 3 ? (
+              <Button onClick={() => setTab(tab + 1)}>Proximo</Button>
+            ) : (
+              <Button onClick={handleSubmit} disabled={loading}>
+                {loading ? "Criando..." : "Criar Influencer"}
+              </Button>
+            )}
+          </div>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

@@ -17,6 +17,43 @@ export type Influencer = {
   coupon_code: string;
   is_archived: boolean;
   created_at: string;
+  // New fields
+  status: string;
+  utm_medium: string | null;
+  size: string | null;
+  origin: string | null;
+  commission_type: string;
+  commission_rate: number;
+  monthly_fee: number;
+  bonus_rules: string | null;
+  pix_key: string | null;
+  address: string | null;
+  payment_info: string | null;
+};
+
+export type InfluencerFormData = {
+  // Basico
+  name: string;
+  status: string;
+  utm_medium: string;
+  coupon_code: string;
+  size: string;
+  niche: string;
+  origin: string;
+  // Social
+  instagram_handle: string;
+  tiktok_handle: string;
+  // Comissao
+  commission_type: string;
+  commission_rate: number;
+  monthly_fee: number;
+  bonus_rules: string;
+  // Contato
+  email: string;
+  phone: string;
+  pix_key: string;
+  address: string;
+  payment_info: string;
 };
 
 export async function getInfluencers(search?: string, niche?: string): Promise<{ data: Influencer[]; error?: string }> {
@@ -55,18 +92,7 @@ export async function getNiches(): Promise<string[]> {
   return niches.sort();
 }
 
-export async function createInfluencer(formData: {
-  name: string;
-  email: string;
-  phone: string;
-  instagram_handle: string;
-  tiktok_handle: string;
-  youtube_handle: string;
-  city: string;
-  state: string;
-  niche: string;
-  coupon_code: string;
-}): Promise<{ error?: string }> {
+export async function createInfluencer(formData: InfluencerFormData): Promise<{ error?: string }> {
   const supabase = await createClient();
 
   const { data: { user } } = await supabase.auth.getUser();
@@ -94,21 +120,7 @@ export async function createInfluencer(formData: {
   return {};
 }
 
-export async function updateInfluencer(
-  id: string,
-  formData: {
-    name: string;
-    email: string;
-    phone: string;
-    instagram_handle: string;
-    tiktok_handle: string;
-    youtube_handle: string;
-    city: string;
-    state: string;
-    niche: string;
-    coupon_code: string;
-  }
-): Promise<{ error?: string }> {
+export async function updateInfluencer(id: string, formData: InfluencerFormData): Promise<{ error?: string }> {
   const supabase = await createClient();
 
   const { error } = await supabase
