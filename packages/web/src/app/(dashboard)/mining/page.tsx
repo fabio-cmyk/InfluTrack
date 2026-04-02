@@ -12,6 +12,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { Search, UserPlus, History } from "lucide-react";
+import { EmptyState } from "@/components/shared/empty-state";
 import { getSearchHistory, getSearchResults, createSearch, saveResultAsInfluencer, type MiningSearch, type MiningResult } from "./actions";
 
 export default function MiningPage() {
@@ -110,9 +111,7 @@ export default function MiningPage() {
           <CardHeader><CardTitle>Resultados</CardTitle></CardHeader>
           <CardContent>
             {results.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-8">
-                Nenhum resultado. Configure a integracao com Apify para ativar a mineracao.
-              </p>
+              <EmptyState icon={Search} title="Nenhum resultado" description="Configure a integracao com Apify para ativar a mineracao." />
             ) : (
               <Table>
                 <TableHeader>
@@ -156,7 +155,7 @@ export default function MiningPage() {
         <CardHeader><CardTitle><History className="inline mr-2 h-4 w-4" />Historico de Buscas</CardTitle></CardHeader>
         <CardContent>
           {searches.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-4">Nenhuma busca realizada.</p>
+            <EmptyState icon={Search} title="Nenhuma busca realizada" description="Use o formulario acima para buscar influencers." />
           ) : (
             <Table>
               <TableHeader>

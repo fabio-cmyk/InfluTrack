@@ -13,7 +13,9 @@ import {
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from "@/components/ui/dialog";
-import { Plus, AlertTriangle, RefreshCw } from "lucide-react";
+import { Plus, AlertTriangle, RefreshCw, Package } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
+import { EmptyState } from "@/components/shared/empty-state";
 import { getProducts, createProduct, updateProductCost, type Product } from "./actions";
 
 export default function ProductsPage() {
@@ -77,9 +79,9 @@ export default function ProductsPage() {
       </PageHeader>
 
       {loading ? (
-        <Card><CardContent className="py-16 text-center"><p className="text-sm text-muted-foreground">Carregando...</p></CardContent></Card>
+        <Card><CardContent className="py-8 space-y-3"><Skeleton className="h-4 w-3/4" /><Skeleton className="h-4 w-1/2" /><Skeleton className="h-4 w-2/3" /><Skeleton className="h-4 w-1/2" /></CardContent></Card>
       ) : products.length === 0 ? (
-        <Card><CardContent className="py-16 text-center"><p className="text-sm text-muted-foreground">Nenhum produto cadastrado. Importe ou adicione produtos ao catalogo.</p></CardContent></Card>
+        <Card><CardContent className="py-8"><EmptyState icon={Package} title="Nenhum produto cadastrado" description="Importe da Yampi ou adicione produtos manualmente." /></CardContent></Card>
       ) : (
         <Card>
           <CardContent className="p-0">

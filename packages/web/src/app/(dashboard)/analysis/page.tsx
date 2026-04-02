@@ -10,7 +10,8 @@ import { Badge } from "@/components/ui/badge";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import { Search, History } from "lucide-react";
+import { Search, History, BarChart3 } from "lucide-react";
+import { EmptyState } from "@/components/shared/empty-state";
 import { getAnalysisHistory, createAnalysis, type AnalysisEntry } from "./actions";
 
 const FIT_COLORS: Record<string, { label: string; className: string }> = {
@@ -138,7 +139,7 @@ export default function AnalysisPage() {
         <CardHeader><CardTitle><History className="inline mr-2 h-4 w-4" />Historico de Analises</CardTitle></CardHeader>
         <CardContent>
           {history.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-4">Nenhuma analise realizada.</p>
+            <EmptyState icon={BarChart3} title="Nenhuma analise realizada" description="Insira um handle acima para analisar um perfil." />
           ) : (
             <Table>
               <TableHeader>

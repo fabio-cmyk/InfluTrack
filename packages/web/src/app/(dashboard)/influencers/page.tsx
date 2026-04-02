@@ -15,7 +15,9 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Card, CardContent } from "@/components/ui/card";
-import { UserPlus, Search, Archive } from "lucide-react";
+import { UserPlus, Search, Archive, Users } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
+import { EmptyState } from "@/components/shared/empty-state";
 import { getInfluencers, getNiches, archiveInfluencer, type Influencer } from "./actions";
 import { InfluencerFormModal } from "./influencer-form";
 
@@ -97,16 +99,17 @@ export default function InfluencersPage() {
       {/* Table */}
       {loading ? (
         <Card>
-          <CardContent className="py-16 text-center">
-            <p className="text-sm text-muted-foreground">Carregando...</p>
+          <CardContent className="py-8 space-y-3">
+            <Skeleton className="h-4 w-3/4" />
+            <Skeleton className="h-4 w-1/2" />
+            <Skeleton className="h-4 w-2/3" />
+            <Skeleton className="h-4 w-1/2" />
           </CardContent>
         </Card>
       ) : influencers.length === 0 ? (
         <Card>
-          <CardContent className="flex flex-col items-center justify-center py-16 text-center">
-            <p className="text-muted-foreground text-sm">
-              Nenhum influencer cadastrado. Adicione influencers para comecar.
-            </p>
+          <CardContent className="py-8">
+            <EmptyState icon={Users} title="Nenhum influencer cadastrado" description="Adicione influencers para comecar a rastrear vendas." />
           </CardContent>
         </Card>
       ) : (

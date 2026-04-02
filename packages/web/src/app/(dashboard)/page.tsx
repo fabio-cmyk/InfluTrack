@@ -4,6 +4,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { getDashboardData } from "./dashboard-actions";
+import { EmptyState } from "@/components/shared/empty-state";
 
 function fmt(val: number | null | undefined): string {
   if (val == null) return "—";
@@ -63,7 +64,7 @@ export default async function DashboardPage() {
           </CardHeader>
           <CardContent>
             {!data.topInfluencers?.length ? (
-              <p className="text-sm text-muted-foreground py-8 text-center">Nenhum dado disponivel.</p>
+              <EmptyState title="Nenhum dado disponivel" description="Dados aparecem quando pedidos forem processados." />
             ) : (
               <Table>
                 <TableHeader>
@@ -105,7 +106,7 @@ export default async function DashboardPage() {
           </CardHeader>
           <CardContent>
             {!data.topCampaigns?.length ? (
-              <p className="text-sm text-muted-foreground py-8 text-center">Nenhum dado disponivel.</p>
+              <EmptyState title="Nenhum dado disponivel" description="Dados aparecem quando pedidos forem processados." />
             ) : (
               <div className="space-y-3">
                 {data.topCampaigns.map((c, i) => {

@@ -9,6 +9,8 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { ShoppingCart, DollarSign, Tag, TagsIcon, ChevronDown, ChevronRight } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
+import { EmptyState } from "@/components/shared/empty-state";
 import { getOrders, getOrderItems, getOrderStats, type Order, type OrderItem } from "./actions";
 
 function fmt(val: number): string {
@@ -120,9 +122,9 @@ export default function OrdersPage() {
 
       {/* Orders Table */}
       {loading ? (
-        <Card><CardContent className="py-16 text-center"><p className="text-sm text-muted-foreground">Carregando...</p></CardContent></Card>
+        <Card><CardContent className="py-8 space-y-3"><Skeleton className="h-4 w-3/4" /><Skeleton className="h-4 w-1/2" /><Skeleton className="h-4 w-2/3" /><Skeleton className="h-4 w-1/2" /></CardContent></Card>
       ) : orders.length === 0 ? (
-        <Card><CardContent className="py-16 text-center"><p className="text-sm text-muted-foreground">Nenhum pedido recebido. Configure o webhook da Yampi/Shopify para comecar a receber pedidos.</p></CardContent></Card>
+        <Card><CardContent className="py-8"><EmptyState icon={ShoppingCart} title="Nenhum pedido recebido" description="Configure o webhook da Yampi em Configuracoes > Integracoes." /></CardContent></Card>
       ) : (
         <Card>
           <CardContent className="p-0">

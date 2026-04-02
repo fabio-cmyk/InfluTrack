@@ -12,7 +12,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { UserPlus, Pencil, Trash2 } from "lucide-react";
+import { UserPlus, Pencil, Trash2, Users } from "lucide-react";
+import { EmptyState } from "@/components/shared/empty-state";
 import { getTeamMembers, removeMember, type TeamMember } from "./actions";
 import { InviteModal } from "./invite-modal";
 import { PermissionsModal } from "./permissions-modal";
@@ -77,9 +78,7 @@ export function TeamSection() {
               Carregando...
             </p>
           ) : members.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-8 text-center">
-              Nenhum membro encontrado.
-            </p>
+            <EmptyState icon={Users} title="Nenhum membro encontrado" />
           ) : (
             <Table>
               <TableHeader>

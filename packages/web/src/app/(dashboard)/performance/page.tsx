@@ -11,6 +11,8 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { Trophy, TrendingUp, DollarSign, Users } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
+import { EmptyState } from "@/components/shared/empty-state";
 import { getPerformanceData, type InfluencerPerformance } from "./actions";
 
 function fmt(val: number): string {
@@ -128,9 +130,9 @@ export default function PerformancePage() {
 
       {/* Ranking Table */}
       {loading ? (
-        <Card><CardContent className="py-16 text-center"><p className="text-sm text-muted-foreground">Carregando...</p></CardContent></Card>
+        <Card><CardContent className="py-8 space-y-3"><Skeleton className="h-4 w-3/4" /><Skeleton className="h-4 w-1/2" /><Skeleton className="h-4 w-2/3" /><Skeleton className="h-4 w-1/2" /></CardContent></Card>
       ) : sorted.length === 0 ? (
-        <Card><CardContent className="py-16 text-center"><p className="text-sm text-muted-foreground">Nenhum influencer com dados de performance.</p></CardContent></Card>
+        <Card><CardContent className="py-8"><EmptyState icon={Trophy} title="Nenhum dado de performance" description="Dados aparecem quando influencers gerarem vendas." /></CardContent></Card>
       ) : (
         <Card>
           <CardContent className="p-0">
