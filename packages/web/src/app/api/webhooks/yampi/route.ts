@@ -125,12 +125,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ message: "Event ignored", event }, { status: 200 });
   }
 
-  // Extract order ID — try multiple fields
-  const externalId = (
+  // Extract order number (user-facing) and ID
+  const orderNumber = (resource.number || resource.order_number || payload.number)?.toString();
+  const externalId = orderNumber || (
     resource.id ||
-    resource.number ||
     resource.order_id ||
-    resource.order_number ||
     payload.id ||
     payload.order_id
   )?.toString();
@@ -190,15 +189,42 @@ export async function POST(request: Request) {
   let itemsInserted = 0;
 
   if (Array.isArray(items) && items.length > 0 && order) {
-    const orderItems = items.map((item: Record<string, unknown>) => ({
-      order_id: order.id,
-      tenant_id: tenantId,
-      external_product_id: (item.product_id || item.sku_id || item.id)?.toString() || null,
-      product_name: (item.name as string) || (item.title as string) || (item.item_sku as string) || (item.sku as string) || "Produto Yampi",
-      quantity: Number(item.quantity) || 1,
-      unit_price: Number(item.price || item.unit_price || item.value) || 0,
-      unit_cost: item.price_cost != null ? Number(item.price_cost) : (item.cost != null ? Number(item.cost) : null),
-    }));
+    // Collect product IDs to look up names from products table
+    const productExtIds = items
+      .map((item: Record<string, unknown>) => (item.product_id || item.sku_id || item.id)?.toString())
+      .filter(Boolean);
+
+    // Fetch product names from our database
+    let productNameMap = new Map<string, string>();
+    if (productExtIds.length > 0) {
+      const { data: dbProducts } = await admin
+        .from("products")
+        .select("external_id, name")
+        .eq("tenant_id", tenantId)
+        .in("external_id", productExtIds);
+      productNameMap = new Map((dbProducts || []).map((p) => [p.external_id, p.name]));
+    }
+
+    const orderItems = items.map((item: Record<string, unknown>) => {
+      const extId = (item.product_id || item.sku_id || item.id)?.toString() || null;
+      // Priority: DB product name > Yampi item name > SKU > fallback
+      const productName = (extId && productNameMap.get(extId))
+        || (item.name as string)
+        || (item.title as string)
+        || (item.product_name as string)
+        || (item.item_sku as string)
+        || "Produto Yampi";
+
+      return {
+        order_id: order.id,
+        tenant_id: tenantId,
+        external_product_id: extId,
+        product_name: productName,
+        quantity: Number(item.quantity) || 1,
+        unit_price: Number(item.price || item.unit_price || item.value) || 0,
+        unit_cost: item.price_cost != null ? Number(item.price_cost) : (item.cost != null ? Number(item.cost) : null),
+      };
+    });
 
     const { error: itemsError } = await admin.from("order_items").insert(orderItems);
     if (!itemsError) itemsInserted = orderItems.length;

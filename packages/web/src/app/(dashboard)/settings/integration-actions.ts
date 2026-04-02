@@ -86,6 +86,66 @@ async function registerYampiWebhook(
   }
 }
 
+async function importYampiProducts(
+  alias: string,
+  token: string,
+  secretKey: string,
+  tenantId: string,
+  supabase: Awaited<ReturnType<typeof createClient>>
+): Promise<{ imported: number; error?: string }> {
+  try {
+    let page = 1;
+    let imported = 0;
+    let hasMore = true;
+
+    while (hasMore) {
+      const res = await fetch(
+        `https://api.dooki.com.br/v2/${alias}/catalog/products?page=${page}&limit=50`,
+        {
+          headers: {
+            "User-Token": token,
+            "User-Secret-Key": secretKey,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      if (!res.ok) break;
+
+      const json = await res.json();
+      const products = json.data || [];
+
+      if (products.length === 0) break;
+
+      for (const p of products) {
+        const sku = p.sku?.data?.[0];
+        await supabase.from("products").upsert(
+          {
+            tenant_id: tenantId,
+            external_id: p.id?.toString(),
+            name: p.name || "Produto sem nome",
+            sku: sku?.sku || null,
+            price: Number(sku?.price_sale || sku?.price || p.price || 0),
+            cost: sku?.price_cost ? Number(sku.price_cost) : null,
+            image_url: p.images?.data?.[0]?.url || null,
+            source: "yampi",
+            synced_at: new Date().toISOString(),
+          },
+          { onConflict: "tenant_id,external_id,source" }
+        );
+        imported++;
+      }
+
+      hasMore = json.meta?.pagination?.current_page < json.meta?.pagination?.total_pages;
+      page++;
+    }
+
+    return { imported };
+  } catch (err) {
+    return { imported: 0, error: String(err) };
+  }
+}
+
 async function deleteYampiWebhook(
   alias: string,
   token: string,
@@ -139,6 +199,9 @@ export async function connectIntegration(
     const webhook = await registerYampiWebhook(alias, token, secret_key, webhookUrl);
 
     if (webhook.error) return { error: webhook.error };
+
+    // Import products from Yampi catalog
+    await importYampiProducts(alias, token, secret_key, tenantUser.tenant_id, supabase);
 
     // Save with webhook_id for cleanup on disconnect
     const { error } = await supabase
