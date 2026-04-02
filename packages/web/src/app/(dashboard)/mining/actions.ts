@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { searchInstagramByKeyword, searchTikTokByKeyword } from "@/lib/scrapecreators";
+import { mineInstagramByKeyword, mineTikTokByKeyword, type MinedInfluencer } from "@/lib/scrapecreators";
 
 export type MiningSearch = {
   id: string;
@@ -21,7 +21,19 @@ export type MiningResult = {
   engagement_rate: number | null;
   niche_estimate: string | null;
   profile_url: string | null;
+  avatar_url: string | null;
   saved_as_influencer_id: string | null;
+  raw_data: {
+    following?: number;
+    posts_count?: number;
+    total_views?: number;
+    total_likes?: number;
+    total_comments?: number;
+    total_shares?: number;
+    content_found?: number;
+    sample_caption?: string;
+    is_verified?: boolean;
+  } | null;
 };
 
 export async function getSearchHistory(): Promise<{ data: MiningSearch[] }> {
@@ -38,7 +50,7 @@ export async function getSearchResults(searchId: string): Promise<{ data: Mining
   const supabase = await createClient();
   const { data } = await supabase
     .from("mining_results")
-    .select("id, platform, handle, display_name, followers, engagement_rate, niche_estimate, profile_url, saved_as_influencer_id")
+    .select("id, platform, handle, display_name, followers, engagement_rate, niche_estimate, profile_url, avatar_url, saved_as_influencer_id, raw_data")
     .eq("search_id", searchId);
   return { data: data || [] };
 }
@@ -74,47 +86,43 @@ export async function createSearch(keywords: string[], platforms: string[]): Pro
   if (apiKey) {
     try {
       const query = keywords.join(" ");
-      const allResults: Array<{
-        platform: string; handle: string; display_name: string;
-        followers: number; profile_url: string; avatar_url: string;
-      }> = [];
+      const allMinedInfluencers: MinedInfluencer[] = [];
 
-      // Instagram: search reels by keyword → extract creators
+      // Instagram: search reels by keyword → extract creators with metrics
       if (platforms.includes("instagram")) {
-        const igResults = await searchInstagramByKeyword(query, apiKey);
-        for (const r of igResults) {
-          allResults.push({
-            platform: "instagram",
-            handle: r.handle,
-            display_name: r.display_name,
-            followers: r.followers,
-            profile_url: `https://instagram.com/${r.handle}`,
-            avatar_url: r.profile_pic,
-          });
-        }
+        const igResults = await mineInstagramByKeyword(query, apiKey);
+        allMinedInfluencers.push(...igResults);
       }
 
-      // TikTok: search videos by keyword → extract creators
+      // TikTok: search videos by keyword → extract creators with metrics
       if (platforms.includes("tiktok")) {
-        const ttResults = await searchTikTokByKeyword(query, apiKey);
-        for (const r of ttResults) {
-          allResults.push({
-            platform: "tiktok",
-            handle: r.handle,
-            display_name: r.display_name,
-            followers: r.followers,
-            profile_url: `https://tiktok.com/@${r.handle}`,
-            avatar_url: r.profile_pic,
-          });
-        }
+        const ttResults = await mineTikTokByKeyword(query, apiKey);
+        allMinedInfluencers.push(...ttResults);
       }
 
-      // Insert all results
-      if (allResults.length > 0) {
-        const rows = allResults.map((r) => ({
+      // Insert all results with full metrics
+      if (allMinedInfluencers.length > 0) {
+        const rows = allMinedInfluencers.map((r) => ({
           search_id: searchId,
           tenant_id: tenantUser.tenant_id,
-          ...r,
+          platform: r.platform,
+          handle: r.handle,
+          display_name: r.display_name,
+          followers: r.followers,
+          engagement_rate: r.avg_engagement_rate,
+          profile_url: r.profile_url,
+          avatar_url: r.profile_pic,
+          raw_data: {
+            following: r.following,
+            posts_count: r.posts_count,
+            total_views: r.total_views,
+            total_likes: r.total_likes,
+            total_comments: r.total_comments,
+            total_shares: r.total_shares,
+            content_found: r.content_found,
+            sample_caption: r.sample_caption,
+            is_verified: r.is_verified,
+          },
         }));
         await supabase.from("mining_results").insert(rows);
       }

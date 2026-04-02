@@ -26,14 +26,24 @@ export type ScrapedProfile = {
   platform: string;
 };
 
-export type ScrapedSearchResult = {
+export type MinedInfluencer = {
   handle: string;
   display_name: string;
   followers: number;
+  following: number;
+  posts_count: number;
   profile_pic: string;
+  profile_url: string;
   is_verified: boolean;
   platform: string;
-  post_count?: number;
+  // Engagement from content found
+  total_views: number;
+  total_likes: number;
+  total_comments: number;
+  total_shares: number;
+  content_found: number; // how many reels/videos matched
+  avg_engagement_rate: number; // (likes+comments) / views * 100
+  sample_caption: string;
 };
 
 // ============================================================
@@ -85,72 +95,129 @@ export async function getTikTokProfile(handle: string, apiKey: string): Promise<
 }
 
 // ============================================================
-// SEARCH/MINING ENDPOINTS — Find influencers by keyword
+// MINING — Search content by keyword, extract creators
 // ============================================================
 
-/**
- * Instagram: Search reels by keyword → extract unique creators from reel owners
- * Endpoint: /v2/instagram/reels/search
- */
-export async function searchInstagramByKeyword(query: string, apiKey: string): Promise<ScrapedSearchResult[]> {
-  const data = await apiCall(`/v2/instagram/reels/search?query=${encodeURIComponent(query)}&count=30`, apiKey);
+export async function mineInstagramByKeyword(query: string, apiKey: string): Promise<MinedInfluencer[]> {
+  const data = await apiCall(`/v2/instagram/reels/search?query=${encodeURIComponent(query)}&count=50`, apiKey);
   const reels = (data.reels as Array<Record<string, unknown>>) || [];
 
-  // Extract unique creators from reel owners
-  const seen = new Set<string>();
-  const results: ScrapedSearchResult[] = [];
+  // Aggregate by creator
+  const creatorMap = new Map<string, MinedInfluencer>();
 
   for (const reel of reels) {
     const owner = (reel.owner as Record<string, unknown>) || {};
     const username = (owner.username as string) || "";
-    if (!username || seen.has(username)) continue;
-    seen.add(username);
+    if (!username) continue;
 
-    results.push({
-      handle: username,
-      display_name: (owner.full_name as string) || username,
-      followers: (owner.follower_count as number) || 0,
-      profile_pic: (owner.profile_pic_url as string) || "",
-      is_verified: (owner.is_verified as boolean) || false,
-      post_count: (owner.post_count as number) || 0,
-      platform: "instagram",
-    });
+    const views = (reel.video_view_count as number) || (reel.video_play_count as number) || 0;
+    const likes = (reel.like_count as number) || 0;
+    const caption = typeof reel.caption === "object" && reel.caption
+      ? ((reel.caption as Record<string, unknown>).text as string) || ""
+      : (reel.caption as string) || "";
+
+    const existing = creatorMap.get(username);
+    if (existing) {
+      existing.total_views += views;
+      existing.total_likes += likes;
+      existing.content_found += 1;
+      if (!existing.sample_caption && caption) existing.sample_caption = caption;
+    } else {
+      creatorMap.set(username, {
+        handle: username,
+        display_name: (owner.full_name as string) || username,
+        followers: (owner.follower_count as number) || 0,
+        following: 0,
+        posts_count: (owner.post_count as number) || 0,
+        profile_pic: (owner.profile_pic_url as string) || "",
+        profile_url: `https://instagram.com/${username}`,
+        is_verified: (owner.is_verified as boolean) || false,
+        platform: "instagram",
+        total_views: views,
+        total_likes: likes,
+        total_comments: 0,
+        total_shares: 0,
+        content_found: 1,
+        avg_engagement_rate: 0,
+        sample_caption: caption,
+      });
+    }
   }
 
+  // Calculate engagement rates
+  const results = Array.from(creatorMap.values()).map((c) => {
+    c.avg_engagement_rate = c.total_views > 0
+      ? Number(((c.total_likes / c.total_views) * 100).toFixed(2))
+      : 0;
+    return c;
+  });
+
+  // Sort by followers descending
+  results.sort((a, b) => b.followers - a.followers);
   return results;
 }
 
-/**
- * TikTok: Search videos by keyword → extract unique creators from video authors
- * Endpoint: /v1/tiktok/search/keyword
- */
-export async function searchTikTokByKeyword(query: string, apiKey: string): Promise<ScrapedSearchResult[]> {
+export async function mineTikTokByKeyword(query: string, apiKey: string): Promise<MinedInfluencer[]> {
   const data = await apiCall(`/v1/tiktok/search/keyword?query=${encodeURIComponent(query)}&count=30`, apiKey);
   const items = (data.search_item_list as Array<Record<string, unknown>>) || [];
 
-  // Extract unique creators from video authors
-  const seen = new Set<string>();
-  const results: ScrapedSearchResult[] = [];
+  // Aggregate by creator
+  const creatorMap = new Map<string, MinedInfluencer>();
 
   for (const item of items) {
     const aweme = (item.aweme_info as Record<string, unknown>) || {};
     const author = (aweme.author as Record<string, unknown>) || {};
+    const stats = (aweme.statistics as Record<string, number>) || {};
     const uniqueId = (author.unique_id as string) || "";
-    if (!uniqueId || seen.has(uniqueId)) continue;
-    seen.add(uniqueId);
+    if (!uniqueId) continue;
+
+    const views = stats.play_count || 0;
+    const likes = stats.digg_count || 0;
+    const comments = stats.comment_count || 0;
+    const shares = stats.share_count || 0;
+    const caption = (aweme.desc as string) || "";
 
     const avatar = (author.avatar_medium as Record<string, unknown>) || {};
     const avatarUrls = (avatar.url_list as string[]) || [];
 
-    results.push({
-      handle: uniqueId,
-      display_name: (author.nickname as string) || uniqueId,
-      followers: (author.follower_count as number) || 0,
-      profile_pic: avatarUrls[0] || "",
-      is_verified: false,
-      platform: "tiktok",
-    });
+    const existing = creatorMap.get(uniqueId);
+    if (existing) {
+      existing.total_views += views;
+      existing.total_likes += likes;
+      existing.total_comments += comments;
+      existing.total_shares += shares;
+      existing.content_found += 1;
+      if (!existing.sample_caption && caption) existing.sample_caption = caption;
+    } else {
+      creatorMap.set(uniqueId, {
+        handle: uniqueId,
+        display_name: (author.nickname as string) || uniqueId,
+        followers: (author.follower_count as number) || 0,
+        following: (author.following_count as number) || 0,
+        posts_count: (author.aweme_count as number) || 0,
+        profile_pic: avatarUrls[0] || "",
+        profile_url: `https://tiktok.com/@${uniqueId}`,
+        is_verified: false,
+        platform: "tiktok",
+        total_views: views,
+        total_likes: likes,
+        total_comments: comments,
+        total_shares: shares,
+        content_found: 1,
+        avg_engagement_rate: 0,
+        sample_caption: caption,
+      });
+    }
   }
 
+  // Calculate engagement rates
+  const results = Array.from(creatorMap.values()).map((c) => {
+    c.avg_engagement_rate = c.total_views > 0
+      ? Number((((c.total_likes + c.total_comments) / c.total_views) * 100).toFixed(2))
+      : 0;
+    return c;
+  });
+
+  results.sort((a, b) => b.followers - a.followers);
   return results;
 }
