@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -41,7 +41,6 @@ const STATUS_MAP: Record<string, { label: string; variant: "default" | "secondar
 
 export function IntegrationsSection() {
   const [integrations, setIntegrations] = useState<Integration[]>([]);
-  const [initialized, setInitialized] = useState(false);
   const [connectingProvider, setConnectingProvider] = useState<string | null>(null);
   const [credentials, setCredentials] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
@@ -52,10 +51,9 @@ export function IntegrationsSection() {
     setIntegrations(data);
   }, []);
 
-  if (!initialized) {
-    setInitialized(true);
+  useEffect(() => {
     loadData();
-  }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   function getIntegration(provider: string): Integration | undefined {
     return integrations.find((i) => i.provider === provider);

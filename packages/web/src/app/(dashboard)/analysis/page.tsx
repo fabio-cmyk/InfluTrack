@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { PageHeader } from "@/components/shared/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -25,17 +25,15 @@ export default function AnalysisPage() {
   const [history, setHistory] = useState<AnalysisEntry[]>([]);
   const [currentAnalysis, setCurrentAnalysis] = useState<AnalysisEntry | null>(null);
   const [loading, setLoading] = useState(false);
-  const [initialized, setInitialized] = useState(false);
 
   const loadHistory = useCallback(async () => {
     const { data } = await getAnalysisHistory();
     setHistory(data);
   }, []);
 
-  if (!initialized) {
-    setInitialized(true);
+  useEffect(() => {
     loadHistory();
-  }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function handleAnalyze() {
     if (!handle.trim()) return;

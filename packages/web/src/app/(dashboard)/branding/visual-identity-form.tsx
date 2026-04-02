@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -101,7 +101,6 @@ export function VisualIdentityForm() {
   const [uploading, setUploading] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [initialized, setInitialized] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -115,10 +114,9 @@ export function VisualIdentityForm() {
     }
   }, []);
 
-  if (!initialized) {
-    setInitialized(true);
+  useEffect(() => {
     loadData();
-  }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function handleLogoUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];

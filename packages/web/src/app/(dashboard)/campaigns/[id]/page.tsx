@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { PageHeader } from "@/components/shared/page-header";
@@ -42,7 +42,6 @@ export default function CampaignDetailPage() {
   const [allInfluencers, setAllInfluencers] = useState<Influencer[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [addLoading, setAddLoading] = useState(false);
-  const [initialized, setInitialized] = useState(false);
 
   const [now] = useState(() => Date.now());
 
@@ -76,10 +75,9 @@ export default function CampaignDetailPage() {
     setLoading(false);
   }, [id]);
 
-  if (!initialized) {
-    setInitialized(true);
+  useEffect(() => {
     loadData();
-  }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function handleSave() {
     setError(null);
@@ -103,8 +101,8 @@ export default function CampaignDetailPage() {
   async function handleSaveInvestment() {
     if (!editingInvestment) return;
     await updateInfluencerInvestment(editingInvestment.id, Number(editingInvestment.value) || 0, id);
+    setLinked(linked.map(l => l.id === editingInvestment.id ? { ...l, investment: Number(editingInvestment.value) || 0 } : l));
     setEditingInvestment(null);
-    loadData();
   }
 
   const totalInvestment = linked.reduce((sum, l) => sum + l.investment, 0);

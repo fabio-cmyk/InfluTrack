@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,7 +23,6 @@ export default function ProductsPage() {
   const [formLoading, setFormLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [editingCost, setEditingCost] = useState<{ id: string; cost: string } | null>(null);
-  const [initialized, setInitialized] = useState(false);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -32,10 +31,9 @@ export default function ProductsPage() {
     setLoading(false);
   }, []);
 
-  if (!initialized) {
-    setInitialized(true);
+  useEffect(() => {
     loadData();
-  }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function handleCreate(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -57,8 +55,8 @@ export default function ProductsPage() {
   async function handleSaveCost() {
     if (!editingCost) return;
     await updateProductCost(editingCost.id, editingCost.cost ? Number(editingCost.cost) : null);
+    setProducts(products.map(p => p.id === editingCost.id ? { ...p, cost: editingCost.cost ? Number(editingCost.cost) : null } : p));
     setEditingCost(null);
-    loadData();
   }
 
   const SOURCE_LABELS: Record<string, string> = { shopify: "Shopify", yampi: "Yampi", manual: "Manual" };

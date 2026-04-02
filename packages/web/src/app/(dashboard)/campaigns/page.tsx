@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import Link from "next/link";
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
@@ -30,7 +30,6 @@ export default function CampaignsPage() {
   const [formOpen, setFormOpen] = useState(false);
   const [formLoading, setFormLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [initialized, setInitialized] = useState(false);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -39,10 +38,9 @@ export default function CampaignsPage() {
     setLoading(false);
   }, []);
 
-  if (!initialized) {
-    setInitialized(true);
+  useEffect(() => {
     loadData();
-  }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function handleCreate(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -67,7 +65,7 @@ export default function CampaignsPage() {
 
   async function handleArchive(id: string) {
     await archiveCampaign(id);
-    loadData();
+    setCampaigns(campaigns.filter(c => c.id !== id));
   }
 
   function formatDate(d: string | null) {

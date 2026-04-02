@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, Fragment } from "react";
 import { PageHeader } from "@/components/shared/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -23,7 +23,6 @@ export default function OrdersPage() {
   const [couponFilter, setCouponFilter] = useState("");
   const [expandedOrder, setExpandedOrder] = useState<string | null>(null);
   const [expandedItems, setExpandedItems] = useState<OrderItem[]>([]);
-  const [initialized, setInitialized] = useState(false);
 
   const loadData = useCallback(async (source?: string, coupon?: string) => {
     setLoading(true);
@@ -41,10 +40,9 @@ export default function OrdersPage() {
     setLoading(false);
   }, []);
 
-  if (!initialized) {
-    setInitialized(true);
+  useEffect(() => {
     loadData();
-  }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   function handleFilter() {
     loadData(sourceFilter || undefined, couponFilter || undefined);
@@ -143,8 +141,8 @@ export default function OrdersPage() {
               </TableHeader>
               <TableBody>
                 {orders.map((order) => (
-                  <>
-                    <TableRow key={order.id} className="cursor-pointer" onClick={() => toggleExpand(order.id)}>
+                  <Fragment key={order.id}>
+                    <TableRow className="cursor-pointer" onClick={() => toggleExpand(order.id)}>
                       <TableCell>
                         {order.items_count > 0 && (
                           expandedOrder === order.id
@@ -181,7 +179,7 @@ export default function OrdersPage() {
                       </TableCell>
                     </TableRow>
                     {expandedOrder === order.id && expandedItems.length > 0 && (
-                      <TableRow key={`${order.id}-items`}>
+                      <TableRow>
                         <TableCell />
                         <TableCell colSpan={7} className="bg-muted/30 p-4">
                           <p className="text-xs font-medium text-muted-foreground mb-2">Itens do pedido ({expandedItems.length})</p>
@@ -210,7 +208,7 @@ export default function OrdersPage() {
                         </TableCell>
                       </TableRow>
                     )}
-                  </>
+                  </Fragment>
                 ))}
               </TableBody>
             </Table>

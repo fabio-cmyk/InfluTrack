@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { PageHeader } from "@/components/shared/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -21,17 +21,15 @@ export default function MiningPage() {
   const [results, setResults] = useState<MiningResult[]>([]);
   const [activeSearch, setActiveSearch] = useState<string | null>(null);
   const [searching, setSearching] = useState(false);
-  const [initialized, setInitialized] = useState(false);
 
   const loadHistory = useCallback(async () => {
     const { data } = await getSearchHistory();
     setSearches(data);
   }, []);
 
-  if (!initialized) {
-    setInitialized(true);
+  useEffect(() => {
     loadHistory();
-  }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   function togglePlatform(p: string) {
     setPlatforms((prev) => {

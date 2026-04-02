@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { PageHeader } from "@/components/shared/page-header";
@@ -118,7 +118,7 @@ export default function InfluencerProfilePage() {
   const [saved, setSaved] = useState(false);
   const [growthModalOpen, setGrowthModalOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [initialized, setInitialized] = useState(false);
+  const [growthError, setGrowthError] = useState<string | null>(null);
 
   // Editable fields
   const [name, setName] = useState("");
@@ -176,10 +176,9 @@ export default function InfluencerProfilePage() {
     setLoading(false);
   }, [id]);
 
-  if (!initialized) {
-    setInitialized(true);
+  useEffect(() => {
     loadData();
-  }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function handleSave() {
     setError(null);
@@ -214,9 +213,10 @@ export default function InfluencerProfilePage() {
       posts_count: Number(fd.get("posts_count")),
     });
     if (result.error) {
-      alert(result.error);
+      setGrowthError(result.error);
       return;
     }
+    setGrowthError(null);
     setGrowthModalOpen(false);
     const growthResult = await getGrowthHistory(id);
     setGrowth(growthResult.data);
@@ -416,6 +416,9 @@ export default function InfluencerProfilePage() {
           </DialogHeader>
           <form onSubmit={handleAddGrowth}>
             <div className="space-y-4 py-2">
+              {growthError && (
+                <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">{growthError}</div>
+              )}
               <div className="space-y-2">
                 <Label htmlFor="record_date">Data</Label>
                 <Input id="record_date" name="record_date" type="date" required />

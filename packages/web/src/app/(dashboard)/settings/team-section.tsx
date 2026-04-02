@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -33,7 +33,6 @@ export function TeamSection() {
   const [loading, setLoading] = useState(true);
   const [inviteOpen, setInviteOpen] = useState(false);
   const [editingMember, setEditingMember] = useState<TeamMember | null>(null);
-  const [initialized, setInitialized] = useState(false);
 
   const loadMembers = useCallback(async () => {
     setLoading(true);
@@ -42,10 +41,9 @@ export function TeamSection() {
     setLoading(false);
   }, []);
 
-  if (!initialized) {
-    setInitialized(true);
+  useEffect(() => {
     loadMembers();
-  }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function handleRemove(userId: string) {
     const result = await removeMember(userId);

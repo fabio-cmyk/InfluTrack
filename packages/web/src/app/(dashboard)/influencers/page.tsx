@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import Link from "next/link";
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
@@ -26,7 +26,6 @@ export default function InfluencersPage() {
   const [selectedNiche, setSelectedNiche] = useState("");
   const [formOpen, setFormOpen] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [initialized, setInitialized] = useState(false);
 
   const loadData = useCallback(async (s?: string, n?: string) => {
     setLoading(true);
@@ -39,10 +38,9 @@ export default function InfluencersPage() {
     setLoading(false);
   }, []);
 
-  if (!initialized) {
-    setInitialized(true);
+  useEffect(() => {
     loadData();
-  }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   function handleSearch() {
     loadData(search || undefined, selectedNiche || undefined);
@@ -50,7 +48,7 @@ export default function InfluencersPage() {
 
   async function handleArchive(id: string) {
     await archiveInfluencer(id);
-    loadData(search || undefined, selectedNiche || undefined);
+    setInfluencers(influencers.filter(i => i.id !== id));
   }
 
   function getMainHandle(inf: Influencer): string {
