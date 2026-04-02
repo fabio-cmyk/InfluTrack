@@ -24,9 +24,11 @@ const PROVIDERS = [
   {
     id: "yampi",
     name: "Yampi",
+    description: "Ao conectar, o webhook de pedidos pagos sera registrado automaticamente.",
     fields: [
-      { key: "token", label: "Token", type: "password" },
       { key: "alias", label: "Alias da Loja", type: "text", placeholder: "minha-loja" },
+      { key: "token", label: "User Token", type: "password", placeholder: "Seu User-Token da API Yampi" },
+      { key: "secret_key", label: "Secret Key", type: "password", placeholder: "Seu User-Secret-Key da API Yampi" },
     ],
   },
 ];
@@ -104,6 +106,12 @@ export function IntegrationsSection() {
 
                   {integration?.error_message && (
                     <p className="text-xs text-destructive">{integration.error_message}</p>
+                  )}
+
+                  {isConnected && integration?.credentials?.webhook_url && (
+                    <p className="text-xs text-green-600 dark:text-green-400">
+                      Webhook ativo — pedidos pagos sincronizam automaticamente
+                    </p>
                   )}
 
                   {integration?.last_sync_at && (
