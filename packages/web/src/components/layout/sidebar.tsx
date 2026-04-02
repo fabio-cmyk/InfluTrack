@@ -8,6 +8,7 @@ import {
   Megaphone,
   Users,
   Package,
+  ShoppingBag,
   Search,
   BarChart3,
   Palette,
@@ -48,6 +49,12 @@ const navItems = [
     label: "Produtos",
     href: "/products",
     icon: Package,
+    group: "main",
+  },
+  {
+    label: "Pedidos",
+    href: "/orders",
+    icon: ShoppingBag,
     group: "main",
   },
   {
