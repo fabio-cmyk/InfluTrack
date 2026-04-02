@@ -106,6 +106,16 @@ export async function POST(request: Request) {
     resource_keys: resource ? Object.keys(resource) : [],
   });
 
+  // Parse Yampi date objects: {date: "2026-04-01 22:35:32.000000", timezone_type: 3, timezone: "America/Sao_Paulo"}
+  function parseYampiDate(val: unknown): string {
+    if (!val) return new Date().toISOString();
+    if (typeof val === "string") return val;
+    if (typeof val === "object" && val !== null && "date" in val) {
+      return (val as { date: string }).date;
+    }
+    return new Date().toISOString();
+  }
+
   // Accept all order events, not just order.*
   // Some Yampi versions may send different event names
   const isOrderEvent = event?.startsWith("order.") || event?.includes("order") || event?.includes("paid");
@@ -157,7 +167,7 @@ export async function POST(request: Request) {
     .insert({
       tenant_id: tenantId,
       external_id: externalId,
-      order_date: resource.created_at || resource.updated_at || resource.paid_at || new Date().toISOString(),
+      order_date: parseYampiDate(resource.created_at || resource.updated_at || resource.paid_at),
       total_amount: totalAmount,
       discount_code: discountCode,
       source: "yampi",
