@@ -81,17 +81,20 @@ export async function getTikTokProfile(handle: string, apiKey: string): Promise<
 
 export async function searchTikTokUsers(query: string, apiKey: string, count = 10): Promise<ScrapedSearchResult[]> {
   const data = await apiCall(`/v1/tiktok/search/users?query=${encodeURIComponent(query)}&count=${count}`, apiKey);
-  const userList = ((data.data as Record<string, unknown>)?.user_list as Array<Record<string, unknown>>) || [];
+  // user_list is at root level, not inside data
+  const userList = (data.user_list as Array<Record<string, unknown>>) || [];
 
   return userList.map((item) => {
-    const user = (item.user_info as Record<string, unknown>)?.user as Record<string, unknown> || item;
-    const stats = (item.user_info as Record<string, unknown>)?.stats as Record<string, number> || {};
+    // Fields are directly in user_info, not in user_info.user
+    const info = (item.user_info as Record<string, unknown>) || {};
+    const avatar = (info.avatar_medium as Record<string, unknown>) || {};
+    const avatarUrls = (avatar.url_list as string[]) || [];
     return {
-      handle: (user.unique_id as string) || "",
-      display_name: (user.nickname as string) || "",
-      followers: stats.followerCount || (user.follower_count as number) || 0,
-      profile_pic: ((user.avatar_thumb as Record<string, unknown>)?.url_list as string[] || [])[0] || "",
-      is_verified: false,
+      handle: (info.unique_id as string) || "",
+      display_name: (info.nickname as string) || "",
+      followers: (info.follower_count as number) || 0,
+      profile_pic: avatarUrls[0] || "",
+      is_verified: (info.verification_type as number) === 1,
       platform: "tiktok",
     };
   });

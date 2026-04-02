@@ -47,8 +47,8 @@ export default function MiningPage() {
     const result = await createSearch(kw, Array.from(platforms));
     if (result.id) {
       setActiveSearch(result.id);
-      // In production, this would trigger Apify. For now, show empty results.
-      setResults([]);
+      const { data } = await getSearchResults(result.id);
+      setResults(data);
       loadHistory();
     }
     setSearching(false);
@@ -77,12 +77,12 @@ export default function MiningPage() {
         <CardHeader><CardTitle>Nova Busca</CardTitle></CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
-            <Label>Palavras-chave (separadas por virgula)</Label>
+            <Label>{platforms.has("tiktok") ? "Palavras-chave (separadas por virgula)" : "Handles do Instagram (separados por virgula)"}</Label>
             <div className="flex gap-2">
               <Input
                 value={keywords}
                 onChange={(e) => setKeywords(e.target.value)}
-                placeholder="fitness, saude, bem-estar"
+                placeholder={platforms.has("tiktok") ? "fitness, saude, bem-estar" : "@handle1, @handle2"}
                 onKeyDown={(e) => e.key === "Enter" && handleSearch()}
               />
               <Button onClick={handleSearch} disabled={searching || !keywords.trim()}>
@@ -101,7 +101,7 @@ export default function MiningPage() {
               <span className="text-sm">TikTok</span>
             </label>
           </div>
-          <p className="text-xs text-muted-foreground">A mineracao requer integracao com Apify configurada em Configuracoes &gt; Integracoes.</p>
+          <p className="text-xs text-muted-foreground">TikTok: busca por palavras-chave. Instagram: busca por handle/username do perfil.</p>
         </CardContent>
       </Card>
 

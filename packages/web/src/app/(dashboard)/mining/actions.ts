@@ -92,11 +92,13 @@ export async function createSearch(keywords: string[], platforms: string[]): Pro
         }
       }
 
-      // For Instagram, search by keyword profiles
+      // For Instagram, each keyword is treated as a handle/username
       if (platforms.includes("instagram")) {
-        for (const kw of keywords.slice(0, 5)) {
+        for (const handle of keywords.slice(0, 10)) {
+          const cleanHandle = handle.trim().replace("@", "").replace("https://instagram.com/", "").replace("https://www.instagram.com/", "");
+          if (!cleanHandle) continue;
           try {
-            const profile = await getInstagramProfile(kw, apiKey);
+            const profile = await getInstagramProfile(cleanHandle, apiKey);
             if (profile.followers > 0) {
               await supabase.from("mining_results").insert({
                 search_id: searchId,
@@ -105,12 +107,13 @@ export async function createSearch(keywords: string[], platforms: string[]): Pro
                 handle: profile.handle,
                 display_name: profile.display_name,
                 followers: profile.followers,
+                engagement_rate: profile.engagement_rate,
                 profile_url: `https://instagram.com/${profile.handle}`,
                 avatar_url: profile.profile_pic,
               });
             }
           } catch {
-            // Profile not found, skip
+            // Handle not found, skip
           }
         }
       }
