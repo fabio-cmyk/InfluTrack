@@ -20,7 +20,7 @@ import {
 import { ArrowLeft, Save, Check, Plus, Trash2, Archive } from "lucide-react";
 import {
   getCampaign, updateCampaign, archiveCampaign,
-  getCampaignInfluencers, addInfluencersToCampaign, removeInfluencerFromCampaign,
+  getCampaignInfluencers, addInfluencersToCampaign, removeInfluencerFromCampaign, updateInfluencerInvestment,
   type Campaign, type CampaignInfluencer,
 } from "../actions";
 import { getInfluencers, type Influencer } from "../../influencers/actions";
@@ -46,10 +46,11 @@ export default function CampaignDetailPage() {
 
   const [now] = useState(() => Date.now());
 
+  const [editingInvestment, setEditingInvestment] = useState<{ id: string; value: string } | null>(null);
+
   // Edit fields
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [budget, setBudget] = useState("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
 
@@ -68,7 +69,6 @@ export default function CampaignDetailPage() {
       setCampaign(c);
       setName(c.name);
       setDescription(c.description || "");
-      setBudget(c.budget ? String(c.budget) : "");
       setStartDate(c.start_date || "");
       setEndDate(c.end_date || "");
     }
@@ -87,7 +87,6 @@ export default function CampaignDetailPage() {
     const result = await updateCampaign(id, {
       name,
       description,
-      budget: budget ? Number(budget) : null,
       start_date: startDate || null,
       end_date: endDate || null,
     });
@@ -100,6 +99,15 @@ export default function CampaignDetailPage() {
     await archiveCampaign(id);
     loadData();
   }
+
+  async function handleSaveInvestment() {
+    if (!editingInvestment) return;
+    await updateInfluencerInvestment(editingInvestment.id, Number(editingInvestment.value) || 0, id);
+    setEditingInvestment(null);
+    loadData();
+  }
+
+  const totalInvestment = linked.reduce((sum, l) => sum + l.investment, 0);
 
   async function openAddModal() {
     const { data } = await getInfluencers();
@@ -181,7 +189,7 @@ export default function CampaignDetailPage() {
         <Card><CardContent className="pt-6"><p className="text-sm text-muted-foreground">Receita</p><p className="mt-1 text-2xl font-bold">{campMetrics ? `R$ ${Number(campMetrics.total_revenue).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` : "—"}</p></CardContent></Card>
         <Card><CardContent className="pt-6"><p className="text-sm text-muted-foreground">Custo</p><p className="mt-1 text-2xl font-bold">{campMetrics ? `R$ ${Number(campMetrics.total_cost).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` : "—"}</p></CardContent></Card>
         <Card><CardContent className="pt-6"><p className="text-sm text-muted-foreground">Lucro</p><p className="mt-1 text-2xl font-bold">{campMetrics ? `R$ ${Number(campMetrics.total_profit).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` : "—"}</p></CardContent></Card>
-        <Card><CardContent className="pt-6"><p className="text-sm text-muted-foreground">ROI</p><p className="mt-1 text-2xl font-bold">{campMetrics && campaign?.budget ? `${((Number(campMetrics.total_profit) / Number(campaign.budget)) * 100).toFixed(1)}%` : "—"}</p></CardContent></Card>
+        <Card><CardContent className="pt-6"><p className="text-sm text-muted-foreground">Investimento</p><p className="mt-1 text-2xl font-bold">{totalInvestment > 0 ? `R$ ${totalInvestment.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` : "—"}</p></CardContent></Card>
       </div>
 
       {/* Edit Form */}
@@ -197,10 +205,7 @@ export default function CampaignDetailPage() {
         </CardHeader>
         <CardContent className="space-y-4">
           {error && <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">{error}</div>}
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="space-y-2"><Label>Nome</Label><Input value={name} onChange={(e) => setName(e.target.value)} /></div>
-            <div className="space-y-2"><Label>Orcamento (R$)</Label><Input value={budget} onChange={(e) => setBudget(e.target.value)} type="number" step="0.01" /></div>
-          </div>
+          <div className="space-y-2"><Label>Nome</Label><Input value={name} onChange={(e) => setName(e.target.value)} /></div>
           <div className="space-y-2">
             <Label>Descricao</Label>
             <textarea value={description} onChange={(e) => setDescription(e.target.value)} className="flex min-h-[60px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
@@ -227,9 +232,9 @@ export default function CampaignDetailPage() {
                 <TableRow>
                   <TableHead>Nome</TableHead>
                   <TableHead>Cupom</TableHead>
+                  <TableHead>Investimento</TableHead>
                   <TableHead>Vendas</TableHead>
                   <TableHead>Receita</TableHead>
-                  <TableHead>ROI</TableHead>
                   <TableHead className="w-[60px]" />
                 </TableRow>
               </TableHeader>
@@ -239,12 +244,23 @@ export default function CampaignDetailPage() {
                   return (
                     <TableRow key={inf.id}>
                       <TableCell>
-                        <Link href={`/influencers/${inf.influencer_id}`} className="font-medium text-primary hover:underline">{inf.name}</Link>
+                        <Link href={`/influencers/${inf.influencer_id}`} className="font-medium hover:underline">{inf.name}</Link>
                       </TableCell>
                       <TableCell><code className="rounded bg-muted px-1.5 py-0.5 text-xs">{inf.coupon_code}</code></TableCell>
+                      <TableCell>
+                        {editingInvestment?.id === inf.id ? (
+                          <div className="flex gap-1 items-center">
+                            <Input value={editingInvestment.value} onChange={(e) => setEditingInvestment({ ...editingInvestment, value: e.target.value })} type="number" step="0.01" className="w-28 h-8" />
+                            <Button size="sm" variant="outline" onClick={handleSaveInvestment} className="h-8">OK</Button>
+                          </div>
+                        ) : (
+                          <button onClick={() => setEditingInvestment({ id: inf.id, value: String(inf.investment) })} className="hover:underline text-sm">
+                            {inf.investment > 0 ? `R$ ${inf.investment.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` : <span className="text-muted-foreground">Definir</span>}
+                          </button>
+                        )}
+                      </TableCell>
                       <TableCell>{im?.total_orders ?? "—"}</TableCell>
                       <TableCell>{im ? `R$ ${Number(im.total_revenue).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` : "—"}</TableCell>
-                      <TableCell>{im && campaign?.budget && linked.length ? `${((Number(im.total_profit) / (Number(campaign.budget) / linked.length)) * 100).toFixed(1)}%` : "—"}</TableCell>
                       <TableCell>
                         <Button variant="ghost" size="icon" onClick={() => handleRemove(inf.id)}>
                           <Trash2 className="h-4 w-4 text-destructive" />

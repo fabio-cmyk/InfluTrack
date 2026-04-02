@@ -23,6 +23,8 @@ export type CampaignInfluencer = {
   instagram_handle: string | null;
   coupon_code: string;
   niche: string | null;
+  size: string | null;
+  investment: number;
   added_at: string;
 };
 
@@ -61,7 +63,6 @@ export async function getCampaign(id: string): Promise<{ data: Campaign | null; 
 export async function createCampaign(formData: {
   name: string;
   description: string;
-  budget: number | null;
   start_date: string | null;
   end_date: string | null;
 }): Promise<{ error?: string }> {
@@ -92,7 +93,6 @@ export async function createCampaign(formData: {
 export async function updateCampaign(id: string, formData: {
   name: string;
   description: string;
-  budget: number | null;
   start_date: string | null;
   end_date: string | null;
 }): Promise<{ error?: string }> {
@@ -129,13 +129,13 @@ export async function getCampaignInfluencers(campaignId: string): Promise<{ data
 
   const { data, error } = await supabase
     .from("campaign_influencers")
-    .select("id, influencer_id, added_at, influencers(name, instagram_handle, coupon_code, niche)")
+    .select("id, influencer_id, investment, added_at, influencers(name, instagram_handle, coupon_code, niche, size)")
     .eq("campaign_id", campaignId);
 
   if (error) return { data: [], error: error.message };
 
   const result = (data || []).map((ci) => {
-    const inf = ci.influencers as unknown as { name: string; instagram_handle: string | null; coupon_code: string; niche: string | null };
+    const inf = ci.influencers as unknown as { name: string; instagram_handle: string | null; coupon_code: string; niche: string | null; size: string | null };
     return {
       id: ci.id,
       influencer_id: ci.influencer_id,
@@ -143,6 +143,8 @@ export async function getCampaignInfluencers(campaignId: string): Promise<{ data
       instagram_handle: inf?.instagram_handle,
       coupon_code: inf?.coupon_code || "—",
       niche: inf?.niche,
+      size: inf?.size,
+      investment: Number(ci.investment) || 0,
       added_at: ci.added_at,
     };
   });
@@ -171,11 +173,30 @@ export async function addInfluencersToCampaign(
     campaign_id: campaignId,
     influencer_id: infId,
     tenant_id: tenantUser.tenant_id,
+    investment: 0,
   }));
 
   const { error } = await supabase
     .from("campaign_influencers")
     .insert(rows);
+
+  if (error) return { error: error.message };
+
+  revalidatePath(`/campaigns/${campaignId}`);
+  return {};
+}
+
+export async function updateInfluencerInvestment(
+  linkId: string,
+  investment: number,
+  campaignId: string
+): Promise<{ error?: string }> {
+  const supabase = await createClient();
+
+  const { error } = await supabase
+    .from("campaign_influencers")
+    .update({ investment })
+    .eq("id", linkId);
 
   if (error) return { error: error.message };
 

@@ -52,7 +52,6 @@ export default function CampaignsPage() {
     const result = await createCampaign({
       name: fd.get("name") as string,
       description: fd.get("description") as string,
-      budget: fd.get("budget") ? Number(fd.get("budget")) : null,
       start_date: (fd.get("start_date") as string) || null,
       end_date: (fd.get("end_date") as string) || null,
     });
@@ -98,7 +97,6 @@ export default function CampaignsPage() {
                   <TableHead>Nome</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Periodo</TableHead>
-                  <TableHead>Orcamento</TableHead>
                   <TableHead>Influencers</TableHead>
                   <TableHead className="w-[80px]">Acoes</TableHead>
                 </TableRow>
@@ -116,9 +114,6 @@ export default function CampaignsPage() {
                       <TableCell><Badge variant={st.variant}>{st.label}</Badge></TableCell>
                       <TableCell className="text-sm text-muted-foreground">
                         {formatDate(c.start_date)} — {formatDate(c.end_date)}
-                      </TableCell>
-                      <TableCell>
-                        {c.budget ? `R$ ${Number(c.budget).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` : "—"}
                       </TableCell>
                       <TableCell>{c.influencer_count || 0}</TableCell>
                       <TableCell>
@@ -149,7 +144,6 @@ export default function CampaignsPage() {
                 <Label htmlFor="description">Descricao</Label>
                 <textarea id="description" name="description" placeholder="Objetivo da campanha..." className="flex min-h-[60px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
               </div>
-              <div className="space-y-2"><Label htmlFor="budget">Orcamento (R$)</Label><Input id="budget" name="budget" type="number" step="0.01" min="0" placeholder="5000.00" /></div>
               <div className="grid gap-4 grid-cols-2">
                 <div className="space-y-2"><Label htmlFor="start_date">Inicio</Label><Input id="start_date" name="start_date" type="date" /></div>
                 <div className="space-y-2"><Label htmlFor="end_date">Termino</Label><Input id="end_date" name="end_date" type="date" /></div>
