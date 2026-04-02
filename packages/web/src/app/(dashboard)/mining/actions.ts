@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { searchTikTokUsers, getInstagramProfile } from "@/lib/scrapecreators";
 
 export type MiningSearch = {
   id: string;
@@ -64,8 +65,73 @@ export async function createSearch(keywords: string[], platforms: string[]): Pro
 
   if (error) return { error: error.message };
 
+  const searchId = data?.id;
+  if (!searchId) return { error: "Falha ao criar busca" };
+
+  // ScrapeCreators API key (global, from env)
+  const apiKey = process.env.SCRAPECREATORS_API_KEY;
+
+  if (apiKey) {
+    try {
+      // Search TikTok if selected
+      if (platforms.includes("tiktok")) {
+        const query = keywords.join(" ");
+        const results = await searchTikTokUsers(query, apiKey, 20);
+        if (results.length > 0) {
+          const rows = results.map((r) => ({
+            search_id: searchId,
+            tenant_id: tenantUser.tenant_id,
+            platform: "tiktok",
+            handle: r.handle,
+            display_name: r.display_name,
+            followers: r.followers,
+            profile_url: `https://tiktok.com/@${r.handle}`,
+            avatar_url: r.profile_pic,
+          }));
+          await supabase.from("mining_results").insert(rows);
+        }
+      }
+
+      // For Instagram, search by keyword profiles
+      if (platforms.includes("instagram")) {
+        for (const kw of keywords.slice(0, 5)) {
+          try {
+            const profile = await getInstagramProfile(kw, apiKey);
+            if (profile.followers > 0) {
+              await supabase.from("mining_results").insert({
+                search_id: searchId,
+                tenant_id: tenantUser.tenant_id,
+                platform: "instagram",
+                handle: profile.handle,
+                display_name: profile.display_name,
+                followers: profile.followers,
+                profile_url: `https://instagram.com/${profile.handle}`,
+                avatar_url: profile.profile_pic,
+              });
+            }
+          } catch {
+            // Profile not found, skip
+          }
+        }
+      }
+
+      // Update results count
+      const { count } = await supabase
+        .from("mining_results")
+        .select("id", { count: "exact", head: true })
+        .eq("search_id", searchId);
+
+      await supabase
+        .from("mining_searches")
+        .update({ results_count: count || 0 })
+        .eq("id", searchId);
+    } catch {
+      // API call failed, search saved without results
+    }
+  }
+
   revalidatePath("/mining");
-  return { id: data?.id };
+  return { id: searchId };
 }
 
 export async function saveResultAsInfluencer(resultId: string): Promise<{ error?: string }> {
