@@ -59,3 +59,37 @@ export async function addGrowthEntry(formData: {
   revalidatePath(`/influencers/${formData.influencer_id}`);
   return {};
 }
+
+export type InfluencerCampaign = {
+  id: string;
+  campaign_id: string;
+  campaign_name: string;
+  start_date: string | null;
+  end_date: string | null;
+  status: string;
+  investment: number;
+};
+
+export async function getInfluencerCampaigns(influencerId: string): Promise<{ data: InfluencerCampaign[] }> {
+  const supabase = await createClient();
+
+  const { data } = await supabase
+    .from("campaign_influencers")
+    .select("id, campaign_id, investment, campaigns(name, start_date, end_date, status)")
+    .eq("influencer_id", influencerId);
+
+  const result = (data || []).map((ci) => {
+    const camp = ci.campaigns as unknown as { name: string; start_date: string | null; end_date: string | null; status: string };
+    return {
+      id: ci.id,
+      campaign_id: ci.campaign_id,
+      campaign_name: camp?.name || "—",
+      start_date: camp?.start_date,
+      end_date: camp?.end_date,
+      status: camp?.status || "draft",
+      investment: Number(ci.investment) || 0,
+    };
+  });
+
+  return { data: result };
+}

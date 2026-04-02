@@ -27,7 +27,7 @@ import {
 } from "@/components/ui/dialog";
 import { ArrowLeft, AtSign, Plus, Save, Check } from "lucide-react";
 import { getInfluencer, updateInfluencer, type Influencer } from "../actions";
-import { getGrowthHistory, addGrowthEntry, type GrowthEntry } from "./actions";
+import { getGrowthHistory, addGrowthEntry, getInfluencerCampaigns, type GrowthEntry, type InfluencerCampaign } from "./actions";
 import { getInfluencerMetrics, type InfluencerMetrics } from "@/lib/metrics";
 
 function GrowthChart({ data }: { data: GrowthEntry[] }) {
@@ -112,6 +112,7 @@ export default function InfluencerProfilePage() {
   const [influencer, setInfluencer] = useState<Influencer | null>(null);
   const [metrics, setMetrics] = useState<InfluencerMetrics | null>(null);
   const [growth, setGrowth] = useState<GrowthEntry[]>([]);
+  const [campaigns, setCampaigns] = useState<InfluencerCampaign[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -141,12 +142,14 @@ export default function InfluencerProfilePage() {
 
   const loadData = useCallback(async () => {
     setLoading(true);
-    const [infResult, growthResult, metricsResult] = await Promise.all([
+    const [infResult, growthResult, metricsResult, campaignsResult] = await Promise.all([
       getInfluencer(id),
       getGrowthHistory(id),
       getInfluencerMetrics(id),
+      getInfluencerCampaigns(id),
     ]);
     setMetrics(metricsResult);
+    setCampaigns(campaignsResult.data);
     if (infResult.data) {
       const inf = infResult.data;
       setInfluencer(inf);
@@ -354,15 +357,54 @@ export default function InfluencerProfilePage() {
         </CardContent>
       </Card>
 
-      {/* Campaigns - Placeholder for Epic 4/6 */}
+      {/* Campaigns */}
       <Card>
         <CardHeader>
-          <CardTitle>Campanhas</CardTitle>
+          <CardTitle>Campanhas ({campaigns.length})</CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-sm text-muted-foreground py-4 text-center">
-            Nenhuma campanha vinculada. Vincule este influencer a campanhas no modulo de Campanhas.
-          </p>
+          {campaigns.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-4 text-center">
+              Nenhuma campanha vinculada. Vincule este influencer a campanhas no modulo de Campanhas.
+            </p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Campanha</TableHead>
+                  <TableHead>Periodo</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Investimento</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {campaigns.map((camp) => (
+                  <TableRow key={camp.id}>
+                    <TableCell>
+                      <Link href={`/campaigns/${camp.campaign_id}`} className="font-medium hover:underline">
+                        {camp.campaign_name}
+                      </Link>
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {camp.start_date ? new Date(camp.start_date).toLocaleDateString("pt-BR") : "—"}
+                      {" — "}
+                      {camp.end_date ? new Date(camp.end_date).toLocaleDateString("pt-BR") : "—"}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={camp.status === "active" ? "default" : "secondary"} className="text-xs capitalize">
+                        {camp.status === "active" ? "Ativa" : camp.status === "ended" ? "Encerrada" : camp.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="font-medium">
+                      {camp.investment > 0
+                        ? `R$ ${camp.investment.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`
+                        : <span className="text-muted-foreground">—</span>}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
         </CardContent>
       </Card>
 
