@@ -1,6 +1,3 @@
-"use client";
-
-import { useState, useCallback } from "react";
 import Link from "next/link";
 import { PageHeader } from "@/components/shared/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,26 +11,15 @@ import {
   Megaphone,
   Users,
 } from "lucide-react";
-import { getDashboardData, type DashboardData } from "./dashboard-actions";
+import { getDashboardData } from "./dashboard-actions";
 
 function fmt(val: number | null | undefined): string {
   if (val == null) return "—";
   return `R$ ${Number(val).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`;
 }
 
-export default function DashboardPage() {
-  const [data, setData] = useState<DashboardData | null>(null);
-  const [initialized, setInitialized] = useState(false);
-
-  const loadData = useCallback(async () => {
-    const result = await getDashboardData();
-    setData(result);
-  }, []);
-
-  if (!initialized) {
-    setInitialized(true);
-    loadData();
-  }
+export default async function DashboardPage() {
+  const data = await getDashboardData();
 
   return (
     <div className="space-y-6">
@@ -49,35 +35,35 @@ export default function DashboardPage() {
             <CardTitle className="text-sm font-medium text-muted-foreground">Total Vendas</CardTitle>
             <ShoppingCart className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
-          <CardContent><div className="text-2xl font-bold">{data?.totalOrders ?? "—"}</div></CardContent>
+          <CardContent><div className="text-2xl font-bold">{data.totalOrders}</div></CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Receita</CardTitle>
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
-          <CardContent><div className="text-2xl font-bold">{fmt(data?.totalRevenue)}</div></CardContent>
+          <CardContent><div className="text-2xl font-bold">{fmt(data.totalRevenue)}</div></CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Lucro</CardTitle>
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
-          <CardContent><div className="text-2xl font-bold">{fmt(data?.totalProfit)}</div></CardContent>
+          <CardContent><div className="text-2xl font-bold">{fmt(data.totalProfit)}</div></CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Campanhas Ativas</CardTitle>
             <Megaphone className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
-          <CardContent><div className="text-2xl font-bold">{data?.activeCampaigns ?? "—"}</div></CardContent>
+          <CardContent><div className="text-2xl font-bold">{data.activeCampaigns}</div></CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Influencers</CardTitle>
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
-          <CardContent><div className="text-2xl font-bold">{data?.activeInfluencers ?? "—"}</div></CardContent>
+          <CardContent><div className="text-2xl font-bold">{data.activeInfluencers}</div></CardContent>
         </Card>
       </div>
 
@@ -88,7 +74,7 @@ export default function DashboardPage() {
             <CardTitle className="text-base">Top 5 Influencers por Receita</CardTitle>
           </CardHeader>
           <CardContent>
-            {!data?.topInfluencers?.length ? (
+            {!data.topInfluencers?.length ? (
               <p className="text-sm text-muted-foreground py-4 text-center">Nenhum dado disponivel.</p>
             ) : (
               <Table>
@@ -114,7 +100,7 @@ export default function DashboardPage() {
             <CardTitle className="text-base">Top 5 Campanhas por Lucro</CardTitle>
           </CardHeader>
           <CardContent>
-            {!data?.topCampaigns?.length ? (
+            {!data.topCampaigns?.length ? (
               <p className="text-sm text-muted-foreground py-4 text-center">Nenhum dado disponivel.</p>
             ) : (
               <Table>
