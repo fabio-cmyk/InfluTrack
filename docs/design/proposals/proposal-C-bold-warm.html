@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>InfluTrack — Proposta C: Bold Warm</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&family=DM+Sans:wght@400;500;600&display=swap');
+
+  :root {
+    --bg: #FFFBF5;
+    --bg-warm: #FFF8F0;
+    --card-bg: #FFFFFF;
+    --card-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 6px 24px rgba(0,0,0,0.04);
+    --border: #F0E6D8;
+    --text-primary: #1A1523;
+    --text-secondary: #6F6E77;
+    --text-muted: #A09FA6;
+    --brand-orange: #F97316;
+    --brand-coral: #FB7185;
+    --brand-purple: #A855F7;
+    --brand-teal: #14B8A6;
+    --brand-blue: #3B82F6;
+    --green: #22C55E;
+    --red: #EF4444;
+    --sidebar-bg: #1A1523;
+    --sidebar-text: #A09FA6;
+    --sidebar-active: #F97316;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--text-primary); display: flex; min-height: 100vh; }
+
+  /* Sidebar — Dark contrasting */
+  .sidebar {
+    width: 72px; background: var(--sidebar-bg); position: fixed; top: 0; bottom: 0;
+    display: flex; flex-direction: column; align-items: center; padding: 16px 0;
+    transition: width 0.3s;
+  }
+  .logo-icon {
+    width: 44px; height: 44px; border-radius: 14px; background: linear-gradient(135deg, #F97316, #FB7185);
+    display: flex; align-items: center; justify-content: center; font-size: 22px;
+    margin-bottom: 32px; box-shadow: 0 4px 16px rgba(249, 115, 22, 0.3);
+  }
+
+  .nav-icons { display: flex; flex-direction: column; gap: 4px; flex: 1; }
+  .nav-icon {
+    width: 44px; height: 44px; border-radius: 12px; display: flex; align-items: center;
+    justify-content: center; font-size: 18px; cursor: pointer; transition: all 0.2s;
+    color: var(--sidebar-text); position: relative;
+  }
+  .nav-icon:hover { background: rgba(255,255,255,0.08); color: white; }
+  .nav-icon.active { background: rgba(249, 115, 22, 0.15); color: var(--sidebar-active); }
+  .nav-icon.active::after {
+    content: ''; position: absolute; right: -2px; top: 50%; transform: translateY(-50%);
+    width: 3px; height: 20px; background: var(--sidebar-active); border-radius: 3px;
+  }
+  .nav-divider { width: 28px; height: 1px; background: rgba(255,255,255,0.1); margin: 8px 0; }
+
+  /* Main */
+  .main { margin-left: 72px; flex: 1; padding: 32px 40px; max-width: 1400px; }
+
+  .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 36px; }
+  .greeting { font-family: 'Sora', sans-serif; font-size: 32px; font-weight: 800; color: var(--text-primary); letter-spacing: -1px; }
+  .greeting span { background: linear-gradient(135deg, #F97316, #FB7185); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+  .header-sub { color: var(--text-secondary); font-size: 15px; margin-top: 6px; }
+
+  .header-right { display: flex; align-items: center; gap: 16px; }
+  .search-bar {
+    display: flex; align-items: center; gap: 8px; padding: 10px 16px; border-radius: 12px;
+    background: white; border: 1px solid var(--border); font-size: 13px; color: var(--text-muted); width: 260px;
+  }
+  .avatar {
+    width: 40px; height: 40px; border-radius: 12px; background: linear-gradient(135deg, #F97316, #A855F7);
+    display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 700; color: white;
+  }
+
+  /* KPI Cards — Bold colored */
+  .kpi-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 16px; margin-bottom: 36px; }
+  .kpi-card {
+    border-radius: 16px; padding: 22px; color: white; position: relative; overflow: hidden;
+    transition: transform 0.3s; cursor: default;
+  }
+  .kpi-card:hover { transform: scale(1.02); }
+  .kpi-card:nth-child(1) { background: linear-gradient(135deg, #7C3AED, #A855F7); }
+  .kpi-card:nth-child(2) { background: linear-gradient(135deg, #F97316, #FB923C); }
+  .kpi-card:nth-child(3) { background: linear-gradient(135deg, #14B8A6, #2DD4BF); }
+  .kpi-card:nth-child(4) { background: linear-gradient(135deg, #3B82F6, #60A5FA); }
+  .kpi-card:nth-child(5) { background: linear-gradient(135deg, #FB7185, #F43F5E); }
+  .kpi-card::after {
+    content: ''; position: absolute; top: -20px; right: -20px; width: 80px; height: 80px;
+    background: rgba(255,255,255,0.1); border-radius: 50%;
+  }
+  .kpi-label { font-size: 12px; opacity: 0.85; font-weight: 500; margin-bottom: 8px; }
+  .kpi-value { font-family: 'Sora', sans-serif; font-size: 30px; font-weight: 800; letter-spacing: -1px; }
+  .kpi-change { font-size: 12px; margin-top: 8px; opacity: 0.85; font-weight: 500; }
+
+  /* Content */
+  .content-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  .card {
+    background: var(--card-bg); border: 1px solid var(--border); border-radius: 16px;
+    padding: 24px; box-shadow: var(--card-shadow);
+  }
+  .card-title {
+    font-family: 'Sora', sans-serif; font-size: 16px; font-weight: 700;
+    margin-bottom: 20px; display: flex; align-items: center; justify-content: space-between;
+  }
+  .card-badge { font-size: 11px; padding: 4px 12px; border-radius: 20px; background: #FFF7ED; color: var(--brand-orange); font-weight: 600; }
+
+  /* Table */
+  table { width: 100%; border-collapse: collapse; }
+  th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted); padding: 8px 0; border-bottom: 2px solid #F5F0EB; font-weight: 600; }
+  td { padding: 14px 0; font-size: 13px; border-bottom: 1px solid #FAF5EF; }
+
+  .rank {
+    width: 28px; height: 28px; border-radius: 8px; display: flex; align-items: center;
+    justify-content: center; font-family: 'Sora', sans-serif; font-weight: 800; font-size: 13px;
+  }
+  .rank-1 { background: linear-gradient(135deg, #F97316, #FB923C); color: white; }
+  .rank-2 { background: #F5F0EB; color: var(--text-primary); }
+  .rank-3 { background: #F5F0EB; color: var(--text-primary); }
+
+  .influencer-row { display: flex; align-items: center; gap: 10px; }
+  .influencer-avatar { width: 36px; height: 36px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; color: white; }
+
+  .coupon { font-family: 'Sora', monospace; font-size: 11px; padding: 4px 10px; border-radius: 8px; background: #FFF7ED; color: var(--brand-orange); font-weight: 700; letter-spacing: 0.5px; }
+
+  .roi-bar { display: flex; align-items: center; gap: 8px; }
+  .roi-fill { height: 6px; border-radius: 3px; background: linear-gradient(90deg, #F97316, #22C55E); }
+  .roi-value { font-family: 'Sora', sans-serif; font-weight: 700; font-size: 13px; color: var(--green); }
+
+  /* Campaign cards */
+  .campaign-item {
+    display: flex; align-items: center; gap: 16px; padding: 16px; border-radius: 12px;
+    background: var(--bg-warm); margin-bottom: 8px; transition: all 0.2s;
+  }
+  .campaign-item:hover { background: #FFF0E0; }
+  .campaign-icon { width: 44px; height: 44px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 20px; }
+  .campaign-name { font-weight: 600; font-size: 14px; }
+  .campaign-meta { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+  .campaign-value { margin-left: auto; text-align: right; }
+  .campaign-revenue { font-family: 'Sora', sans-serif; font-weight: 700; font-size: 16px; color: var(--green); }
+  .campaign-orders { font-size: 11px; color: var(--text-muted); }
+
+  .progress-bar { width: 100%; height: 4px; background: #F0E6D8; border-radius: 2px; margin-top: 8px; }
+  .progress-fill { height: 100%; border-radius: 2px; }
+</style>
+</head>
+<body>
+  <!-- Sidebar — Icon only -->
+  <aside class="sidebar">
+    <div class="logo-icon">⚡</div>
+    <div class="nav-icons">
+      <div class="nav-icon active" title="Dashboard">📊</div>
+      <div class="nav-icon" title="Campanhas">📢</div>
+      <div class="nav-icon" title="Influencers">👥</div>
+      <div class="nav-icon" title="Produtos">📦</div>
+      <div class="nav-icon" title="Pedidos">🛒</div>
+      <div class="nav-divider"></div>
+      <div class="nav-icon" title="Mineracao">🔍</div>
+      <div class="nav-icon" title="Analise">📈</div>
+      <div class="nav-divider"></div>
+      <div class="nav-icon" title="Branding">🎨</div>
+      <div class="nav-icon" title="Config">⚙️</div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="header">
+      <div>
+        <div class="greeting">Ola, <span>Fabio</span></div>
+        <div class="header-sub">Aqui esta o resumo do seu programa de influencia</div>
+      </div>
+      <div class="header-right">
+        <div class="search-bar">🔍 Buscar campanhas, influencers...</div>
+        <div class="avatar">FB</div>
+      </div>
+    </div>
+
+    <div class="kpi-grid">
+      <div class="kpi-card">
+        <div class="kpi-label">Total Vendas</div>
+        <div class="kpi-value">1.247</div>
+        <div class="kpi-change">↑ 12.5% vs mes anterior</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Receita Total</div>
+        <div class="kpi-value">R$ 89.4k</div>
+        <div class="kpi-change">↑ 8.3%</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Lucro Liquido</div>
+        <div class="kpi-value">R$ 34.2k</div>
+        <div class="kpi-change">↑ 15.1%</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Campanhas Ativas</div>
+        <div class="kpi-value">7</div>
+        <div class="kpi-change">2 encerrando em breve</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Influencers Ativos</div>
+        <div class="kpi-value">34</div>
+        <div class="kpi-change">+5 este mes</div>
+      </div>
+    </div>
+
+    <div class="content-grid">
+      <div class="card">
+        <div class="card-title">Ranking de Influencers <span class="card-badge">Por ROI</span></div>
+        <table>
+          <thead><tr><th>#</th><th>Influencer</th><th>Cupom</th><th>Receita</th><th>ROI</th></tr></thead>
+          <tbody>
+            <tr>
+              <td><div class="rank rank-1">1</div></td>
+              <td><div class="influencer-row"><div class="influencer-avatar" style="background:linear-gradient(135deg,#F97316,#FB7185)">JM</div><div><div style="font-weight:600">Julia Martins</div><div style="font-size:11px;color:var(--text-muted)">@juliamartins · 342 vendas</div></div></div></td>
+              <td><span class="coupon">JULIA20</span></td>
+              <td style="font-weight:600">R$ 28.4k</td>
+              <td><div class="roi-bar"><div class="roi-fill" style="width:90%"></div><span class="roi-value">324%</span></div></td>
+            </tr>
+            <tr>
+              <td><div class="rank rank-2">2</div></td>
+              <td><div class="influencer-row"><div class="influencer-avatar" style="background:linear-gradient(135deg,#3B82F6,#A855F7)">RS</div><div><div style="font-weight:600">Rafael Santos</div><div style="font-size:11px;color:var(--text-muted)">@rafaelsantos · 218 vendas</div></div></div></td>
+              <td><span class="coupon">RAFA15</span></td>
+              <td style="font-weight:600">R$ 19.2k</td>
+              <td><div class="roi-bar"><div class="roi-fill" style="width:75%"></div><span class="roi-value">287%</span></div></td>
+            </tr>
+            <tr>
+              <td><div class="rank rank-3">3</div></td>
+              <td><div class="influencer-row"><div class="influencer-avatar" style="background:linear-gradient(135deg,#14B8A6,#3B82F6)">CO</div><div><div style="font-weight:600">Camila Oliveira</div><div style="font-size:11px;color:var(--text-muted)">@camilaoliv · 187 vendas</div></div></div></td>
+              <td><span class="coupon">CAMI10</span></td>
+              <td style="font-weight:600">R$ 15.8k</td>
+              <td><div class="roi-bar"><div class="roi-fill" style="width:55%"></div><span class="roi-value">198%</span></div></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Campanhas Ativas</div>
+        <div class="campaign-item">
+          <div class="campaign-icon" style="background:linear-gradient(135deg,#F97316,#FB923C);color:white;border-radius:12px">🔥</div>
+          <div>
+            <div class="campaign-name">Black Friday 2026</div>
+            <div class="campaign-meta">12 influencers · 15 dias restantes</div>
+            <div class="progress-bar"><div class="progress-fill" style="width:65%;background:linear-gradient(90deg,#F97316,#22C55E)"></div></div>
+          </div>
+          <div class="campaign-value">
+            <div class="campaign-revenue">R$ 42.8k</div>
+            <div class="campaign-orders">487 vendas</div>
+          </div>
+        </div>
+        <div class="campaign-item">
+          <div class="campaign-icon" style="background:linear-gradient(135deg,#A855F7,#EC4899);color:white;border-radius:12px">✨</div>
+          <div>
+            <div class="campaign-name">Verao com Estilo</div>
+            <div class="campaign-meta">8 influencers · 28 dias restantes</div>
+            <div class="progress-bar"><div class="progress-fill" style="width:30%;background:linear-gradient(90deg,#A855F7,#EC4899)"></div></div>
+          </div>
+          <div class="campaign-value">
+            <div class="campaign-revenue">R$ 18.6k</div>
+            <div class="campaign-orders">203 vendas</div>
+          </div>
+        </div>
+        <div class="campaign-item">
+          <div class="campaign-icon" style="background:linear-gradient(135deg,#3B82F6,#06B6D4);color:white;border-radius:12px">💎</div>
+          <div>
+            <div class="campaign-name">Lancamento Colecao</div>
+            <div class="campaign-meta">5 influencers · 7 dias restantes</div>
+            <div class="progress-bar"><div class="progress-fill" style="width:85%;background:linear-gradient(90deg,#3B82F6,#06B6D4)"></div></div>
+          </div>
+          <div class="campaign-value">
+            <div class="campaign-revenue">R$ 28.0k</div>
+            <div class="campaign-orders">312 vendas</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+</body>
+</html>

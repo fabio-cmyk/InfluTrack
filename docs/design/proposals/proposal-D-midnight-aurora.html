@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>InfluTrack — Proposta D: Midnight Aurora</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&display=swap');
+
+  :root {
+    --bg: #050510;
+    --bg-card: #0C0C1D;
+    --bg-card-hover: #111128;
+    --border: #1A1A35;
+    --text: #E8E8F0;
+    --text-secondary: #7A7A9A;
+    --text-muted: #4A4A6A;
+    --aurora-1: #00D4AA;
+    --aurora-2: #0088FF;
+    --aurora-3: #8844EE;
+    --aurora-4: #FF4488;
+    --green: #00D4AA;
+    --red: #FF4466;
+    --amber: #FFB020;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Outfit', sans-serif; background: var(--bg); color: var(--text); display: flex; min-height: 100vh; }
+
+  /* Aurora background effect */
+  body::before {
+    content: ''; position: fixed; top: -50%; left: -50%; width: 200%; height: 200%;
+    background: radial-gradient(ellipse at 20% 50%, rgba(0, 212, 170, 0.04) 0%, transparent 50%),
+                radial-gradient(ellipse at 80% 20%, rgba(0, 136, 255, 0.04) 0%, transparent 50%),
+                radial-gradient(ellipse at 60% 80%, rgba(136, 68, 238, 0.03) 0%, transparent 50%);
+    pointer-events: none; z-index: 0;
+  }
+
+  .sidebar {
+    width: 240px; background: rgba(12, 12, 29, 0.95); border-right: 1px solid var(--border);
+    position: fixed; top: 0; bottom: 0; z-index: 10; backdrop-filter: blur(20px);
+  }
+  .logo { padding: 24px 20px; display: flex; align-items: center; gap: 10px; }
+  .logo-mark {
+    width: 34px; height: 34px; border-radius: 10px; position: relative;
+    background: linear-gradient(135deg, var(--aurora-1), var(--aurora-2));
+    display: flex; align-items: center; justify-content: center;
+  }
+  .logo-mark::after {
+    content: ''; position: absolute; inset: -2px; border-radius: 12px;
+    background: linear-gradient(135deg, var(--aurora-1), var(--aurora-2));
+    opacity: 0.3; filter: blur(8px); z-index: -1;
+  }
+  .logo-mark span { font-size: 16px; font-weight: 800; color: white; }
+  .logo-text { font-weight: 700; font-size: 18px; letter-spacing: -0.3px; }
+
+  .nav { padding: 8px 10px; }
+  .nav-group { margin-bottom: 20px; }
+  .nav-label { font-size: 9px; text-transform: uppercase; letter-spacing: 2px; color: var(--text-muted); padding: 6px 10px; font-weight: 600; }
+  .nav-item {
+    display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-radius: 8px;
+    color: var(--text-secondary); font-size: 13px; font-weight: 500; cursor: pointer;
+    transition: all 0.15s; text-decoration: none; margin-bottom: 1px;
+  }
+  .nav-item:hover { color: var(--text); background: rgba(255,255,255,0.03); }
+  .nav-item.active {
+    color: var(--aurora-1); background: rgba(0, 212, 170, 0.08);
+    border-left: 2px solid var(--aurora-1); padding-left: 10px;
+  }
+  .nav-item .icon { width: 18px; text-align: center; font-size: 14px; }
+
+  .main { margin-left: 240px; flex: 1; padding: 28px 36px; position: relative; z-index: 1; }
+
+  .topbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 28px; }
+  .topbar h1 { font-size: 24px; font-weight: 700; letter-spacing: -0.5px; }
+  .topbar-right { display: flex; align-items: center; gap: 12px; }
+  .btn-outline {
+    padding: 8px 16px; border-radius: 8px; border: 1px solid var(--border); background: transparent;
+    color: var(--text-secondary); font-size: 12px; font-weight: 500; cursor: pointer; font-family: inherit;
+  }
+  .avatar { width: 34px; height: 34px; border-radius: 50%; background: linear-gradient(135deg, var(--aurora-1), var(--aurora-3)); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; }
+
+  /* KPIs — horizontal strip */
+  .kpi-strip {
+    display: flex; gap: 1px; margin-bottom: 28px; border-radius: 14px; overflow: hidden;
+    background: var(--border);
+  }
+  .kpi-item {
+    flex: 1; background: var(--bg-card); padding: 18px 20px; transition: background 0.2s;
+  }
+  .kpi-item:hover { background: var(--bg-card-hover); }
+  .kpi-item:first-child { border-radius: 14px 0 0 14px; }
+  .kpi-item:last-child { border-radius: 0 14px 14px 0; }
+  .kpi-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+  .kpi-label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600; }
+  .kpi-dot { width: 6px; height: 6px; border-radius: 50%; }
+  .kpi-value { font-size: 26px; font-weight: 800; letter-spacing: -1px; }
+  .kpi-delta { font-size: 11px; margin-top: 4px; font-weight: 500; }
+  .kpi-delta.up { color: var(--aurora-1); }
+  .kpi-delta.down { color: var(--red); }
+
+  /* Grid */
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .grid-full { grid-column: 1 / -1; }
+
+  .card {
+    background: var(--bg-card); border: 1px solid var(--border); border-radius: 14px; padding: 22px;
+  }
+  .card-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; }
+  .card-head h3 { font-size: 14px; font-weight: 600; }
+  .tag { font-size: 10px; padding: 3px 10px; border-radius: 20px; font-weight: 600; }
+  .tag-aurora { background: rgba(0,212,170,0.1); color: var(--aurora-1); }
+
+  table { width: 100%; border-collapse: collapse; }
+  th { text-align: left; font-size: 10px; text-transform: uppercase; letter-spacing: 0.8px; color: var(--text-muted); padding: 6px 0; border-bottom: 1px solid var(--border); font-weight: 600; }
+  td { padding: 10px 0; font-size: 13px; border-bottom: 1px solid rgba(26,26,53,0.8); }
+
+  .user-cell { display: flex; align-items: center; gap: 10px; }
+  .user-av { width: 30px; height: 30px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; color: white; }
+  .user-name { font-weight: 600; font-size: 13px; }
+  .user-handle { font-size: 11px; color: var(--text-muted); }
+
+  .mono { font-family: 'Outfit', monospace; font-size: 11px; padding: 2px 8px; border-radius: 4px; background: rgba(0,212,170,0.08); color: var(--aurora-1); font-weight: 600; }
+
+  .metric-good { color: var(--aurora-1); font-weight: 700; }
+  .metric-warn { color: var(--amber); font-weight: 700; }
+
+  /* Order feed */
+  .feed-item { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid rgba(26,26,53,0.6); }
+  .feed-indicator { width: 3px; height: 32px; border-radius: 2px; flex-shrink: 0; }
+  .feed-content { flex: 1; }
+  .feed-main { font-size: 13px; font-weight: 500; }
+  .feed-sub { font-size: 11px; color: var(--text-muted); margin-top: 1px; }
+  .feed-value { font-weight: 700; font-size: 14px; white-space: nowrap; }
+</style>
+</head>
+<body>
+  <aside class="sidebar">
+    <div class="logo">
+      <div class="logo-mark"><span>IT</span></div>
+      <div class="logo-text">InfluTrack</div>
+    </div>
+    <nav class="nav">
+      <div class="nav-group">
+        <div class="nav-label">Menu</div>
+        <a class="nav-item active"><span class="icon">◉</span> Dashboard</a>
+        <a class="nav-item"><span class="icon">◎</span> Campanhas</a>
+        <a class="nav-item"><span class="icon">◎</span> Influencers</a>
+        <a class="nav-item"><span class="icon">◎</span> Produtos</a>
+        <a class="nav-item"><span class="icon">◎</span> Pedidos</a>
+      </div>
+      <div class="nav-group">
+        <div class="nav-label">Descoberta</div>
+        <a class="nav-item"><span class="icon">◎</span> Mineracao</a>
+        <a class="nav-item"><span class="icon">◎</span> Analise</a>
+      </div>
+      <div class="nav-group">
+        <div class="nav-label">Sistema</div>
+        <a class="nav-item"><span class="icon">◎</span> Branding</a>
+        <a class="nav-item"><span class="icon">◎</span> Config</a>
+      </div>
+    </nav>
+  </aside>
+
+  <main class="main">
+    <div class="topbar">
+      <h1>Dashboard</h1>
+      <div class="topbar-right">
+        <button class="btn-outline">Ultimos 30 dias ▾</button>
+        <div class="avatar">FB</div>
+      </div>
+    </div>
+
+    <div class="kpi-strip">
+      <div class="kpi-item">
+        <div class="kpi-top"><span class="kpi-label">Vendas</span><div class="kpi-dot" style="background:var(--aurora-1)"></div></div>
+        <div class="kpi-value">1.247</div>
+        <div class="kpi-delta up">+12.5% vs anterior</div>
+      </div>
+      <div class="kpi-item">
+        <div class="kpi-top"><span class="kpi-label">Receita</span><div class="kpi-dot" style="background:var(--aurora-2)"></div></div>
+        <div class="kpi-value">R$ 89.4k</div>
+        <div class="kpi-delta up">+8.3%</div>
+      </div>
+      <div class="kpi-item">
+        <div class="kpi-top"><span class="kpi-label">Lucro</span><div class="kpi-dot" style="background:var(--aurora-3)"></div></div>
+        <div class="kpi-value">R$ 34.2k</div>
+        <div class="kpi-delta up">+15.1%</div>
+      </div>
+      <div class="kpi-item">
+        <div class="kpi-top"><span class="kpi-label">Campanhas</span><div class="kpi-dot" style="background:var(--aurora-4)"></div></div>
+        <div class="kpi-value">7</div>
+        <div class="kpi-delta up">ativas</div>
+      </div>
+      <div class="kpi-item">
+        <div class="kpi-top"><span class="kpi-label">Influencers</span><div class="kpi-dot" style="background:var(--aurora-1)"></div></div>
+        <div class="kpi-value">34</div>
+        <div class="kpi-delta up">+5 novos</div>
+      </div>
+    </div>
+
+    <div class="grid">
+      <div class="card">
+        <div class="card-head"><h3>Top Influencers</h3><span class="tag tag-aurora">ROI</span></div>
+        <table>
+          <thead><tr><th>Influencer</th><th>Cupom</th><th>Receita</th><th>ROI</th></tr></thead>
+          <tbody>
+            <tr>
+              <td><div class="user-cell"><div class="user-av" style="background:linear-gradient(135deg,var(--aurora-1),var(--aurora-2))">JM</div><div><div class="user-name">Julia Martins</div><div class="user-handle">@juliamartins</div></div></div></td>
+              <td><span class="mono">JULIA20</span></td>
+              <td>R$ 28.4k</td>
+              <td class="metric-good">324%</td>
+            </tr>
+            <tr>
+              <td><div class="user-cell"><div class="user-av" style="background:linear-gradient(135deg,var(--aurora-2),var(--aurora-3))">RS</div><div><div class="user-name">Rafael Santos</div><div class="user-handle">@rafaelsantos</div></div></div></td>
+              <td><span class="mono">RAFA15</span></td>
+              <td>R$ 19.2k</td>
+              <td class="metric-good">287%</td>
+            </tr>
+            <tr>
+              <td><div class="user-cell"><div class="user-av" style="background:linear-gradient(135deg,var(--aurora-3),var(--aurora-4))">CO</div><div><div class="user-name">Camila Oliveira</div><div class="user-handle">@camilaoliv</div></div></div></td>
+              <td><span class="mono">CAMI10</span></td>
+              <td>R$ 15.8k</td>
+              <td class="metric-warn">198%</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h3>Feed de Pedidos</h3><span class="tag tag-aurora">Tempo real</span></div>
+        <div class="feed-item">
+          <div class="feed-indicator" style="background:var(--aurora-1)"></div>
+          <div class="feed-content"><div class="feed-main">#4521 — JULIA20</div><div class="feed-sub">Yampi · 2 min atras</div></div>
+          <div class="feed-value" style="color:var(--aurora-1)">R$ 189,90</div>
+        </div>
+        <div class="feed-item">
+          <div class="feed-indicator" style="background:var(--border)"></div>
+          <div class="feed-content"><div class="feed-main">#4520 — Sem cupom</div><div class="feed-sub">Yampi · 15 min atras</div></div>
+          <div class="feed-value">R$ 94,50</div>
+        </div>
+        <div class="feed-item">
+          <div class="feed-indicator" style="background:var(--aurora-2)"></div>
+          <div class="feed-content"><div class="feed-main">#4519 — RAFA15</div><div class="feed-sub">Yampi · 32 min atras</div></div>
+          <div class="feed-value" style="color:var(--aurora-2)">R$ 347,00</div>
+        </div>
+        <div class="feed-item">
+          <div class="feed-indicator" style="background:var(--aurora-3)"></div>
+          <div class="feed-content"><div class="feed-main">#4518 — CAMI10</div><div class="feed-sub">Yampi · 1h atras</div></div>
+          <div class="feed-value" style="color:var(--aurora-3)">R$ 129,90</div>
+        </div>
+        <div class="feed-item">
+          <div class="feed-indicator" style="background:var(--aurora-4)"></div>
+          <div class="feed-content"><div class="feed-main">#4517 — LUCAS25</div><div class="feed-sub">Yampi · 2h atras</div></div>
+          <div class="feed-value" style="color:var(--aurora-4)">R$ 259,00</div>
+        </div>
+      </div>
+    </div>
+  </main>
+</body>
+</html>

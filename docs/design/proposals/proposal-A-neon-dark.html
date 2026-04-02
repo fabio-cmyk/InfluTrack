@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>InfluTrack — Proposta A: Neon Dark</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap');
+
+  :root {
+    --bg-primary: #0A0A0F;
+    --bg-secondary: #12121A;
+    --bg-card: #16161F;
+    --bg-card-hover: #1C1C28;
+    --border: #2A2A3A;
+    --text-primary: #F0F0F5;
+    --text-secondary: #8888A0;
+    --text-muted: #55556A;
+    --accent-primary: #7C3AED;
+    --accent-glow: #8B5CF6;
+    --accent-secondary: #06B6D4;
+    --accent-pink: #EC4899;
+    --accent-green: #10B981;
+    --accent-amber: #F59E0B;
+    --accent-red: #EF4444;
+    --gradient-1: linear-gradient(135deg, #7C3AED, #06B6D4);
+    --gradient-2: linear-gradient(135deg, #EC4899, #7C3AED);
+    --gradient-3: linear-gradient(135deg, #06B6D4, #10B981);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Inter', sans-serif; background: var(--bg-primary); color: var(--text-primary); display: flex; min-height: 100vh; }
+
+  /* Sidebar */
+  .sidebar {
+    width: 260px; background: var(--bg-secondary); border-right: 1px solid var(--border);
+    display: flex; flex-direction: column; position: fixed; top: 0; bottom: 0;
+  }
+  .logo { padding: 20px 24px; display: flex; align-items: center; gap: 12px; }
+  .logo-icon {
+    width: 36px; height: 36px; border-radius: 10px; background: var(--gradient-1);
+    display: flex; align-items: center; justify-content: center; font-size: 18px;
+    box-shadow: 0 0 20px rgba(124, 58, 237, 0.3);
+  }
+  .logo-text { font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 20px; letter-spacing: -0.5px; }
+  .logo-text span { background: var(--gradient-1); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+
+  .nav { padding: 12px; flex: 1; }
+  .nav-section { margin-bottom: 8px; }
+  .nav-label { font-size: 10px; text-transform: uppercase; letter-spacing: 1.5px; color: var(--text-muted); padding: 8px 12px; font-weight: 600; }
+  .nav-item {
+    display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 8px;
+    color: var(--text-secondary); font-size: 13px; font-weight: 500; cursor: pointer; transition: all 0.2s;
+    text-decoration: none; margin-bottom: 2px;
+  }
+  .nav-item:hover { background: var(--bg-card); color: var(--text-primary); }
+  .nav-item.active {
+    background: rgba(124, 58, 237, 0.15); color: var(--accent-glow);
+    box-shadow: inset 3px 0 0 var(--accent-primary);
+  }
+
+  /* Main */
+  .main { margin-left: 260px; flex: 1; padding: 32px; }
+
+  .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 32px; }
+  .header h1 { font-family: 'Space Grotesk', sans-serif; font-size: 28px; font-weight: 700; }
+  .header p { color: var(--text-secondary); font-size: 14px; margin-top: 4px; }
+
+  .header-actions { display: flex; gap: 12px; align-items: center; }
+  .avatar {
+    width: 36px; height: 36px; border-radius: 50%; background: var(--gradient-2);
+    display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 600;
+  }
+
+  /* KPI Cards */
+  .kpi-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 16px; margin-bottom: 32px; }
+  .kpi-card {
+    background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px;
+    padding: 20px; position: relative; overflow: hidden; transition: all 0.3s;
+  }
+  .kpi-card:hover { border-color: var(--accent-primary); transform: translateY(-2px); box-shadow: 0 8px 32px rgba(124, 58, 237, 0.1); }
+  .kpi-card::before {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+  }
+  .kpi-card:nth-child(1)::before { background: var(--gradient-1); }
+  .kpi-card:nth-child(2)::before { background: var(--gradient-3); }
+  .kpi-card:nth-child(3)::before { background: var(--gradient-2); }
+  .kpi-card:nth-child(4)::before { background: linear-gradient(135deg, #F59E0B, #EF4444); }
+  .kpi-card:nth-child(5)::before { background: linear-gradient(135deg, #10B981, #06B6D4); }
+  .kpi-label { font-size: 12px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
+  .kpi-value { font-family: 'Space Grotesk', sans-serif; font-size: 28px; font-weight: 700; }
+  .kpi-change { font-size: 12px; margin-top: 8px; display: flex; align-items: center; gap: 4px; }
+  .kpi-change.up { color: var(--accent-green); }
+  .kpi-change.down { color: var(--accent-red); }
+
+  /* Content Grid */
+  .content-grid { display: grid; grid-template-columns: 1.5fr 1fr; gap: 24px; }
+
+  .card {
+    background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px;
+    padding: 24px; transition: border-color 0.3s;
+  }
+  .card:hover { border-color: rgba(124, 58, 237, 0.3); }
+  .card-title { font-family: 'Space Grotesk', sans-serif; font-size: 16px; font-weight: 600; margin-bottom: 20px; display: flex; align-items: center; justify-content: space-between; }
+  .card-badge { font-size: 11px; padding: 4px 10px; border-radius: 20px; background: rgba(124, 58, 237, 0.15); color: var(--accent-glow); }
+
+  /* Table */
+  table { width: 100%; border-collapse: collapse; }
+  th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted); padding: 8px 0; border-bottom: 1px solid var(--border); font-weight: 600; }
+  td { padding: 12px 0; font-size: 13px; border-bottom: 1px solid rgba(42, 42, 58, 0.5); }
+  tr:hover td { background: rgba(124, 58, 237, 0.03); }
+
+  .influencer-row { display: flex; align-items: center; gap: 10px; }
+  .influencer-avatar {
+    width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 600; color: white;
+  }
+
+  .badge { font-size: 11px; padding: 3px 8px; border-radius: 6px; font-weight: 500; }
+  .badge-active { background: rgba(16, 185, 129, 0.15); color: var(--accent-green); }
+  .badge-ended { background: rgba(136, 136, 160, 0.15); color: var(--text-secondary); }
+  .badge-source { background: rgba(6, 182, 212, 0.15); color: var(--accent-secondary); }
+
+  .coupon { font-family: 'Space Grotesk', monospace; font-size: 12px; padding: 3px 8px; border-radius: 4px; background: rgba(124, 58, 237, 0.1); color: var(--accent-glow); }
+
+  /* Right column items */
+  .activity-item { display: flex; gap: 12px; padding: 12px 0; border-bottom: 1px solid rgba(42, 42, 58, 0.5); }
+  .activity-dot { width: 8px; height: 8px; border-radius: 50%; margin-top: 6px; flex-shrink: 0; }
+  .activity-text { font-size: 13px; }
+  .activity-time { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+
+  /* Glow effects */
+  .glow-purple { box-shadow: 0 0 20px rgba(124, 58, 237, 0.2); }
+  .glow-cyan { box-shadow: 0 0 20px rgba(6, 182, 212, 0.2); }
+</style>
+</head>
+<body>
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="logo">
+      <div class="logo-icon">⚡</div>
+      <div class="logo-text"><span>Influ</span>Track</div>
+    </div>
+
+    <nav class="nav">
+      <div class="nav-section">
+        <div class="nav-label">Principal</div>
+        <a class="nav-item active">📊 Dashboard</a>
+        <a class="nav-item">📢 Campanhas</a>
+        <a class="nav-item">👥 Influencers</a>
+        <a class="nav-item">📦 Produtos</a>
+        <a class="nav-item">🛒 Pedidos</a>
+      </div>
+      <div class="nav-section">
+        <div class="nav-label">Descoberta</div>
+        <a class="nav-item">🔍 Mineracao</a>
+        <a class="nav-item">📈 Analise</a>
+      </div>
+      <div class="nav-section">
+        <div class="nav-label">Config</div>
+        <a class="nav-item">🎨 Branding</a>
+        <a class="nav-item">⚙️ Configuracoes</a>
+      </div>
+    </nav>
+  </aside>
+
+  <!-- Main Content -->
+  <main class="main">
+    <div class="header">
+      <div>
+        <h1>Dashboard</h1>
+        <p>Visao geral do seu programa de influencia</p>
+      </div>
+      <div class="header-actions">
+        <div class="avatar">FB</div>
+      </div>
+    </div>
+
+    <!-- KPIs -->
+    <div class="kpi-grid">
+      <div class="kpi-card">
+        <div class="kpi-label">Total Vendas</div>
+        <div class="kpi-value">1.247</div>
+        <div class="kpi-change up">↑ 12.5% vs mes anterior</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Receita</div>
+        <div class="kpi-value">R$ 89.4k</div>
+        <div class="kpi-change up">↑ 8.3%</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Lucro</div>
+        <div class="kpi-value">R$ 34.2k</div>
+        <div class="kpi-change up">↑ 15.1%</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Campanhas Ativas</div>
+        <div class="kpi-value">7</div>
+        <div class="kpi-change down">↓ 2 encerraram</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Influencers</div>
+        <div class="kpi-value">34</div>
+        <div class="kpi-change up">↑ 5 novos</div>
+      </div>
+    </div>
+
+    <!-- Content -->
+    <div class="content-grid">
+      <div class="card">
+        <div class="card-title">
+          Top Influencers por ROI
+          <span class="card-badge">Este mes</span>
+        </div>
+        <table>
+          <thead>
+            <tr><th>Influencer</th><th>Cupom</th><th>Vendas</th><th>Receita</th><th>ROI</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><div class="influencer-row"><div class="influencer-avatar" style="background: var(--gradient-1)">JM</div><div><div style="font-weight:500">Julia Martins</div><div style="font-size:11px;color:var(--text-muted)">@juliamartins</div></div></div></td>
+              <td><span class="coupon">JULIA20</span></td>
+              <td>342</td>
+              <td style="color:var(--accent-green)">R$ 28.4k</td>
+              <td style="font-weight:600;color:var(--accent-green)">324%</td>
+            </tr>
+            <tr>
+              <td><div class="influencer-row"><div class="influencer-avatar" style="background: var(--gradient-2)">RS</div><div><div style="font-weight:500">Rafael Santos</div><div style="font-size:11px;color:var(--text-muted)">@rafaelsantos</div></div></div></td>
+              <td><span class="coupon">RAFA15</span></td>
+              <td>218</td>
+              <td style="color:var(--accent-green)">R$ 19.2k</td>
+              <td style="font-weight:600;color:var(--accent-green)">287%</td>
+            </tr>
+            <tr>
+              <td><div class="influencer-row"><div class="influencer-avatar" style="background: var(--gradient-3)">CO</div><div><div style="font-weight:500">Camila Oliveira</div><div style="font-size:11px;color:var(--text-muted)">@camilaoliv</div></div></div></td>
+              <td><span class="coupon">CAMI10</span></td>
+              <td>187</td>
+              <td style="color:var(--accent-green)">R$ 15.8k</td>
+              <td style="font-weight:600;color:var(--accent-amber)">198%</td>
+            </tr>
+            <tr>
+              <td><div class="influencer-row"><div class="influencer-avatar" style="background: linear-gradient(135deg,#F59E0B,#EF4444)">LP</div><div><div style="font-weight:500">Lucas Pereira</div><div style="font-size:11px;color:var(--text-muted)">@lucaspereira</div></div></div></td>
+              <td><span class="coupon">LUCAS25</span></td>
+              <td>156</td>
+              <td style="color:var(--accent-green)">R$ 12.1k</td>
+              <td style="font-weight:600;color:var(--accent-amber)">156%</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Pedidos Recentes</div>
+        <div class="activity-item">
+          <div class="activity-dot" style="background:var(--accent-green)"></div>
+          <div>
+            <div class="activity-text"><strong>Pedido #4521</strong> — R$ 189,90</div>
+            <div class="activity-time">Cupom JULIA20 · Yampi · 2min atras</div>
+          </div>
+        </div>
+        <div class="activity-item">
+          <div class="activity-dot" style="background:var(--accent-secondary)"></div>
+          <div>
+            <div class="activity-text"><strong>Pedido #4520</strong> — R$ 94,50</div>
+            <div class="activity-time">Sem cupom · Yampi · 15min atras</div>
+          </div>
+        </div>
+        <div class="activity-item">
+          <div class="activity-dot" style="background:var(--accent-primary)"></div>
+          <div>
+            <div class="activity-text"><strong>Pedido #4519</strong> — R$ 347,00</div>
+            <div class="activity-time">Cupom RAFA15 · Yampi · 32min atras</div>
+          </div>
+        </div>
+        <div class="activity-item">
+          <div class="activity-dot" style="background:var(--accent-green)"></div>
+          <div>
+            <div class="activity-text"><strong>Pedido #4518</strong> — R$ 129,90</div>
+            <div class="activity-time">Cupom CAMI10 · Yampi · 1h atras</div>
+          </div>
+        </div>
+        <div class="activity-item">
+          <div class="activity-dot" style="background:var(--accent-pink)"></div>
+          <div>
+            <div class="activity-text"><strong>Pedido #4517</strong> — R$ 259,00</div>
+            <div class="activity-time">Cupom LUCAS25 · Yampi · 2h atras</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+</body>
+</html>

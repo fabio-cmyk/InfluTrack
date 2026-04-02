@@ -1,20 +1,17 @@
 import { type ReactNode } from "react";
-import { Target } from "lucide-react";
 
 export default function AuthLayout({ children }: { children: ReactNode }) {
   return (
     <div className="flex min-h-screen">
-      {/* Left panel — branding */}
-      <div className="hidden lg:flex lg:w-1/2 bg-primary flex-col items-center justify-center gap-6 p-12">
+      {/* Left panel — minimal branding */}
+      <div className="hidden lg:flex lg:w-1/2 bg-foreground flex-col items-center justify-center gap-8 p-12">
         <div className="flex items-center gap-3">
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white/20">
-            <Target className="h-7 w-7 text-primary-foreground" />
-          </div>
-          <span className="text-3xl font-bold text-primary-foreground tracking-tight">
-            InfluTrack
+          <div className="flex h-3 w-3 rounded-full bg-background" />
+          <span className="text-2xl font-bold text-background tracking-tight lowercase">
+            influtrack
           </span>
         </div>
-        <p className="text-primary-foreground/80 text-center max-w-sm text-lg">
+        <p className="text-background/50 text-center max-w-xs text-sm leading-relaxed">
           Rastreie o ROI real dos seus influencers. Campanhas, vendas e lucro em um so lugar.
         </p>
       </div>
