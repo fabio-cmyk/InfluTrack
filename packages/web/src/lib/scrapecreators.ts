@@ -95,6 +95,76 @@ export async function getTikTokProfile(handle: string, apiKey: string): Promise<
 }
 
 // ============================================================
+// POSTS / CONTENT ENDPOINTS — For profile analysis
+// ============================================================
+
+export type ScrapedPost = {
+  id: string;
+  code: string;
+  type: string; // "reel", "carousel", "photo"
+  caption: string;
+  like_count: number;
+  comment_count: number;
+  play_count: number;
+  thumbnail: string;
+  url: string;
+  taken_at: number;
+};
+
+export async function getInstagramPosts(handle: string, apiKey: string, count = 12): Promise<ScrapedPost[]> {
+  const data = await apiCall(`/v2/instagram/user/posts?handle=${encodeURIComponent(handle)}&count=${count}`, apiKey);
+  const items = (data.items as Array<Record<string, unknown>>) || [];
+
+  return items.map((p) => {
+    const caption = p.caption as Record<string, unknown> | null;
+    const imgs = ((p.image_versions2 as Record<string, unknown>)?.candidates as Array<Record<string, string>>) || [];
+    const productType = (p.product_type as string) || "";
+    const mediaType = p.media_type as number;
+
+    let type = "photo";
+    if (productType === "clips" || mediaType === 2) type = "reel";
+    else if (productType === "carousel_container" || mediaType === 8) type = "carousel";
+
+    return {
+      id: (p.id as string) || "",
+      code: (p.code as string) || "",
+      type,
+      caption: caption?.text as string || "",
+      like_count: (p.like_count as number) || 0,
+      comment_count: (p.comment_count as number) || 0,
+      play_count: (p.play_count as number) || 0,
+      thumbnail: imgs[0]?.url || "",
+      url: `https://instagram.com/p/${p.code}`,
+      taken_at: (p.taken_at as number) || 0,
+    };
+  });
+}
+
+export async function getTikTokVideos(handle: string, apiKey: string, count = 12): Promise<ScrapedPost[]> {
+  const data = await apiCall(`/v3/tiktok/profile/videos?username=${encodeURIComponent(handle)}&count=${count}`, apiKey);
+  const items = (data.videos as Array<Record<string, unknown>>) || (data.itemList as Array<Record<string, unknown>>) || (data.data as Array<Record<string, unknown>>) || [];
+
+  return items.map((p) => {
+    const stats = (p.stats as Record<string, number>) || (p.statistics as Record<string, number>) || {};
+    const video = (p.video as Record<string, unknown>) || {};
+    const cover = (video.cover as string) || (video.originCover as string) || (p.cover as string) || "";
+
+    return {
+      id: (p.id as string) || (p.aweme_id as string) || "",
+      code: (p.id as string) || "",
+      type: "video",
+      caption: (p.desc as string) || (p.title as string) || "",
+      like_count: stats.diggCount || stats.digg_count || 0,
+      comment_count: stats.commentCount || stats.comment_count || 0,
+      play_count: stats.playCount || stats.play_count || 0,
+      thumbnail: cover,
+      url: `https://tiktok.com/@${handle}/video/${p.id}`,
+      taken_at: (p.createTime as number) || (p.create_time as number) || 0,
+    };
+  });
+}
+
+// ============================================================
 // MINING — Search content by keyword, extract creators
 // ============================================================
 
