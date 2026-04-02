@@ -15,7 +15,12 @@ import {
   Palette,
   Settings,
 } from "lucide-react";
-import { Separator } from "@/components/ui/separator";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+  TooltipProvider,
+} from "@/components/ui/tooltip";
 
 const navItems = [
   { label: "Dashboard", href: "/", icon: LayoutDashboard, group: "main" },
@@ -27,7 +32,7 @@ const navItems = [
   { label: "Mineracao", href: "/mining", icon: Search, group: "discovery" },
   { label: "Analise", href: "/analysis", icon: BarChart3, group: "discovery" },
   { label: "Branding", href: "/branding", icon: Palette, group: "settings" },
-  { label: "Configuracoes", href: "/settings", icon: Settings, group: "settings" },
+  { label: "Config", href: "/settings", icon: Settings, group: "settings" },
 ];
 
 export function Sidebar() {
@@ -40,47 +45,53 @@ export function Sidebar() {
   };
 
   return (
-    <aside className="fixed inset-y-0 left-0 z-50 flex w-[220px] flex-col border-r bg-card">
-      {/* Logo — minimal dot + lowercase */}
-      <div className="flex h-14 items-center gap-2 px-5 border-b">
-        <div className="h-2 w-2 rounded-full bg-foreground" />
-        <span className="text-[15px] font-bold tracking-tight lowercase">
-          influtrack
-        </span>
-      </div>
+    <TooltipProvider>
+      <aside className="fixed inset-y-0 left-0 z-50 flex w-[72px] flex-col items-center bg-sidebar py-4">
+        {/* Logo */}
+        <div className="mb-8 flex h-11 w-11 items-center justify-center rounded-[14px] bg-gradient-to-br from-primary to-[oklch(0.6_0.18_350)] shadow-lg shadow-primary/30">
+          <span className="text-[18px] font-extrabold text-white">IT</span>
+        </div>
 
-      {/* Navigation */}
-      <nav className="flex-1 overflow-y-auto px-2 py-3">
-        {Object.entries(groups).map(([group, items], groupIndex) => (
-          <div key={group}>
-            {groupIndex > 0 && <Separator className="my-2" />}
-            <ul className="space-y-0.5">
+        {/* Navigation */}
+        <nav className="flex flex-1 flex-col items-center gap-1">
+          {Object.entries(groups).map(([group, items], groupIndex) => (
+            <div key={group} className="flex flex-col items-center gap-1">
+              {groupIndex > 0 && <div className="my-2 h-px w-7 bg-sidebar-border" />}
               {items.map((item) => {
                 const isActive =
                   pathname === item.href ||
                   (item.href !== "/" && pathname.startsWith(item.href));
 
                 return (
-                  <li key={item.href}>
-                    <Link
-                      href={item.href}
-                      className={cn(
-                        "flex items-center gap-2.5 rounded-md px-3 py-[7px] text-[13px] font-medium transition-colors",
-                        isActive
-                          ? "bg-foreground text-background"
-                          : "text-muted-foreground hover:bg-accent hover:text-foreground"
-                      )}
+                  <Tooltip key={item.href}>
+                    <TooltipTrigger
+                      render={
+                        <Link
+                          href={item.href}
+                          className={cn(
+                            "flex h-11 w-11 items-center justify-center rounded-xl transition-all relative",
+                            isActive
+                              ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                              : "text-sidebar-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground"
+                          )}
+                        />
+                      }
                     >
-                      <item.icon className="h-4 w-4 shrink-0" />
-                      <span>{item.label}</span>
-                    </Link>
-                  </li>
+                      <item.icon className="h-[18px] w-[18px]" />
+                      {isActive && (
+                        <div className="absolute right-[-2px] top-1/2 -translate-y-1/2 h-5 w-[3px] rounded-l-full bg-sidebar-primary" />
+                      )}
+                    </TooltipTrigger>
+                    <TooltipContent side="right">
+                      {item.label}
+                    </TooltipContent>
+                  </Tooltip>
                 );
               })}
-            </ul>
-          </div>
-        ))}
-      </nav>
-    </aside>
+            </div>
+          ))}
+        </nav>
+      </aside>
+    </TooltipProvider>
   );
 }

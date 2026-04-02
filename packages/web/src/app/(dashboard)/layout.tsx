@@ -9,7 +9,7 @@ export default function DashboardLayout({
   return (
     <div className="min-h-screen">
       <Sidebar />
-      <div className="ml-[220px]">
+      <div className="ml-[72px]">
         <TopNav />
         <main className="p-6">{children}</main>
       </div>
