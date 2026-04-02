@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { searchTikTokUsers, getInstagramProfile } from "@/lib/scrapecreators";
+import { searchInstagramByKeyword, searchTikTokByKeyword } from "@/lib/scrapecreators";
 
 export type MiningSearch = {
   id: string;
@@ -73,49 +73,50 @@ export async function createSearch(keywords: string[], platforms: string[]): Pro
 
   if (apiKey) {
     try {
-      // Search TikTok if selected
+      const query = keywords.join(" ");
+      const allResults: Array<{
+        platform: string; handle: string; display_name: string;
+        followers: number; profile_url: string; avatar_url: string;
+      }> = [];
+
+      // Instagram: search reels by keyword → extract creators
+      if (platforms.includes("instagram")) {
+        const igResults = await searchInstagramByKeyword(query, apiKey);
+        for (const r of igResults) {
+          allResults.push({
+            platform: "instagram",
+            handle: r.handle,
+            display_name: r.display_name,
+            followers: r.followers,
+            profile_url: `https://instagram.com/${r.handle}`,
+            avatar_url: r.profile_pic,
+          });
+        }
+      }
+
+      // TikTok: search videos by keyword → extract creators
       if (platforms.includes("tiktok")) {
-        const query = keywords.join(" ");
-        const results = await searchTikTokUsers(query, apiKey, 20);
-        if (results.length > 0) {
-          const rows = results.map((r) => ({
-            search_id: searchId,
-            tenant_id: tenantUser.tenant_id,
+        const ttResults = await searchTikTokByKeyword(query, apiKey);
+        for (const r of ttResults) {
+          allResults.push({
             platform: "tiktok",
             handle: r.handle,
             display_name: r.display_name,
             followers: r.followers,
             profile_url: `https://tiktok.com/@${r.handle}`,
             avatar_url: r.profile_pic,
-          }));
-          await supabase.from("mining_results").insert(rows);
+          });
         }
       }
 
-      // For Instagram, each keyword is treated as a handle/username
-      if (platforms.includes("instagram")) {
-        for (const handle of keywords.slice(0, 10)) {
-          const cleanHandle = handle.trim().replace("@", "").replace("https://instagram.com/", "").replace("https://www.instagram.com/", "");
-          if (!cleanHandle) continue;
-          try {
-            const profile = await getInstagramProfile(cleanHandle, apiKey);
-            if (profile.followers > 0) {
-              await supabase.from("mining_results").insert({
-                search_id: searchId,
-                tenant_id: tenantUser.tenant_id,
-                platform: "instagram",
-                handle: profile.handle,
-                display_name: profile.display_name,
-                followers: profile.followers,
-                engagement_rate: profile.engagement_rate,
-                profile_url: `https://instagram.com/${profile.handle}`,
-                avatar_url: profile.profile_pic,
-              });
-            }
-          } catch {
-            // Handle not found, skip
-          }
-        }
+      // Insert all results
+      if (allResults.length > 0) {
+        const rows = allResults.map((r) => ({
+          search_id: searchId,
+          tenant_id: tenantUser.tenant_id,
+          ...r,
+        }));
+        await supabase.from("mining_results").insert(rows);
       }
 
       // Update results count

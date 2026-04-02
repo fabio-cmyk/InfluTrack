@@ -33,7 +33,12 @@ export type ScrapedSearchResult = {
   profile_pic: string;
   is_verified: boolean;
   platform: string;
+  post_count?: number;
 };
+
+// ============================================================
+// PROFILE ENDPOINTS
+// ============================================================
 
 export async function getInstagramProfile(handle: string, apiKey: string): Promise<ScrapedProfile> {
   const cleanHandle = handle.replace("@", "").replace("https://instagram.com/", "").replace("https://www.instagram.com/", "").trim();
@@ -79,23 +84,73 @@ export async function getTikTokProfile(handle: string, apiKey: string): Promise<
   };
 }
 
-export async function searchTikTokUsers(query: string, apiKey: string, count = 10): Promise<ScrapedSearchResult[]> {
-  const data = await apiCall(`/v1/tiktok/search/users?query=${encodeURIComponent(query)}&count=${count}`, apiKey);
-  // user_list is at root level, not inside data
-  const userList = (data.user_list as Array<Record<string, unknown>>) || [];
+// ============================================================
+// SEARCH/MINING ENDPOINTS — Find influencers by keyword
+// ============================================================
 
-  return userList.map((item) => {
-    // Fields are directly in user_info, not in user_info.user
-    const info = (item.user_info as Record<string, unknown>) || {};
-    const avatar = (info.avatar_medium as Record<string, unknown>) || {};
+/**
+ * Instagram: Search reels by keyword → extract unique creators from reel owners
+ * Endpoint: /v2/instagram/reels/search
+ */
+export async function searchInstagramByKeyword(query: string, apiKey: string): Promise<ScrapedSearchResult[]> {
+  const data = await apiCall(`/v2/instagram/reels/search?query=${encodeURIComponent(query)}&count=30`, apiKey);
+  const reels = (data.reels as Array<Record<string, unknown>>) || [];
+
+  // Extract unique creators from reel owners
+  const seen = new Set<string>();
+  const results: ScrapedSearchResult[] = [];
+
+  for (const reel of reels) {
+    const owner = (reel.owner as Record<string, unknown>) || {};
+    const username = (owner.username as string) || "";
+    if (!username || seen.has(username)) continue;
+    seen.add(username);
+
+    results.push({
+      handle: username,
+      display_name: (owner.full_name as string) || username,
+      followers: (owner.follower_count as number) || 0,
+      profile_pic: (owner.profile_pic_url as string) || "",
+      is_verified: (owner.is_verified as boolean) || false,
+      post_count: (owner.post_count as number) || 0,
+      platform: "instagram",
+    });
+  }
+
+  return results;
+}
+
+/**
+ * TikTok: Search videos by keyword → extract unique creators from video authors
+ * Endpoint: /v1/tiktok/search/keyword
+ */
+export async function searchTikTokByKeyword(query: string, apiKey: string): Promise<ScrapedSearchResult[]> {
+  const data = await apiCall(`/v1/tiktok/search/keyword?query=${encodeURIComponent(query)}&count=30`, apiKey);
+  const items = (data.search_item_list as Array<Record<string, unknown>>) || [];
+
+  // Extract unique creators from video authors
+  const seen = new Set<string>();
+  const results: ScrapedSearchResult[] = [];
+
+  for (const item of items) {
+    const aweme = (item.aweme_info as Record<string, unknown>) || {};
+    const author = (aweme.author as Record<string, unknown>) || {};
+    const uniqueId = (author.unique_id as string) || "";
+    if (!uniqueId || seen.has(uniqueId)) continue;
+    seen.add(uniqueId);
+
+    const avatar = (author.avatar_medium as Record<string, unknown>) || {};
     const avatarUrls = (avatar.url_list as string[]) || [];
-    return {
-      handle: (info.unique_id as string) || "",
-      display_name: (info.nickname as string) || "",
-      followers: (info.follower_count as number) || 0,
+
+    results.push({
+      handle: uniqueId,
+      display_name: (author.nickname as string) || uniqueId,
+      followers: (author.follower_count as number) || 0,
       profile_pic: avatarUrls[0] || "",
-      is_verified: (info.verification_type as number) === 1,
+      is_verified: false,
       platform: "tiktok",
-    };
-  });
+    });
+  }
+
+  return results;
 }

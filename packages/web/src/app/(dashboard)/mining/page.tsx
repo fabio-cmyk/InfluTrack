@@ -77,12 +77,12 @@ export default function MiningPage() {
         <CardHeader><CardTitle>Nova Busca</CardTitle></CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
-            <Label>{platforms.has("tiktok") ? "Palavras-chave (separadas por virgula)" : "Handles do Instagram (separados por virgula)"}</Label>
+            <Label>Palavras-chave ou termos de busca</Label>
             <div className="flex gap-2">
               <Input
                 value={keywords}
                 onChange={(e) => setKeywords(e.target.value)}
-                placeholder={platforms.has("tiktok") ? "fitness, saude, bem-estar" : "@handle1, @handle2"}
+                placeholder="cinta modeladora, fitness, skincare"
                 onKeyDown={(e) => e.key === "Enter" && handleSearch()}
               />
               <Button onClick={handleSearch} disabled={searching || !keywords.trim()}>
@@ -101,7 +101,7 @@ export default function MiningPage() {
               <span className="text-sm">TikTok</span>
             </label>
           </div>
-          <p className="text-xs text-muted-foreground">TikTok: busca por palavras-chave. Instagram: busca por handle/username do perfil.</p>
+          <p className="text-xs text-muted-foreground">Busca influencers em reels e videos que mencionam esses termos. Resultados mostram os criadores do conteudo.</p>
         </CardContent>
       </Card>
 
