@@ -11,7 +11,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import { Search, UserPlus, History, ExternalLink, Eye, Heart, MessageCircle, Share2, CheckCircle } from "lucide-react";
+import { Search, UserPlus, History, ExternalLink, Eye, Heart, MessageCircle, Share2, CheckCircle, Globe } from "lucide-react";
 import { EmptyState } from "@/components/shared/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getSearchHistory, getSearchResults, createSearch, saveResultAsInfluencer, type MiningSearch, type MiningResult } from "./actions";
@@ -26,6 +26,7 @@ function fmtNum(n: number | null | undefined): string {
 export default function MiningPage() {
   const [keywords, setKeywords] = useState("");
   const [platforms, setPlatforms] = useState<Set<string>>(new Set(["instagram", "tiktok"]));
+  const [region, setRegion] = useState("brasil");
   const [searches, setSearches] = useState<MiningSearch[]>([]);
   const [results, setResults] = useState<MiningResult[]>([]);
   const [activeSearch, setActiveSearch] = useState<string | null>(null);
@@ -53,7 +54,7 @@ export default function MiningPage() {
     setSearching(true);
     setResults([]);
     const kw = keywords.split(",").map((k) => k.trim()).filter(Boolean);
-    const result = await createSearch(kw, Array.from(platforms));
+    const result = await createSearch(kw, Array.from(platforms), region);
     if (result.id) {
       setActiveSearch(result.id);
       const { data } = await getSearchResults(result.id);
@@ -98,7 +99,7 @@ export default function MiningPage() {
                 </Button>
               </div>
             </div>
-            <div className="flex gap-4">
+            <div className="flex flex-wrap items-center gap-4">
               <label className="flex items-center gap-2 cursor-pointer">
                 <Checkbox checked={platforms.has("instagram")} onCheckedChange={() => togglePlatform("instagram")} />
                 <span className="text-sm font-medium">Instagram (Reels)</span>
@@ -107,8 +108,23 @@ export default function MiningPage() {
                 <Checkbox checked={platforms.has("tiktok")} onCheckedChange={() => togglePlatform("tiktok")} />
                 <span className="text-sm font-medium">TikTok (Videos)</span>
               </label>
+              <div className="ml-auto flex items-center gap-2">
+                <Globe className="h-4 w-4 text-muted-foreground" />
+                <select
+                  value={region}
+                  onChange={(e) => setRegion(e.target.value)}
+                  className="text-sm border rounded-md px-2 py-1.5 bg-background"
+                >
+                  <option value="brasil">Brasil</option>
+                  <option value="global">Global</option>
+                </select>
+              </div>
             </div>
-            <p className="text-xs text-muted-foreground">Busca em reels e videos que mencionam esses termos. Extrai os criadores com metricas de engajamento.</p>
+            <p className="text-xs text-muted-foreground">
+              {region === "brasil"
+                ? "Busca direcionada para criadores brasileiros. Filtra por idioma e contexto local."
+                : "Busca global sem filtro de regiao."}
+            </p>
           </div>
         </CardContent>
       </Card>

@@ -55,7 +55,40 @@ export async function getSearchResults(searchId: string): Promise<{ data: Mining
   return { data: data || [] };
 }
 
-export async function createSearch(keywords: string[], platforms: string[]): Promise<{ id?: string; error?: string }> {
+function looksPortuguese(text: string): boolean {
+  if (!text) return false;
+  const lower = text.toLowerCase();
+  // Common Portuguese words and patterns
+  const ptWords = [
+    "voce", "você", "para", "como", "que", "esse", "essa", "isso", "isto",
+    "nao", "não", "muito", "mais", "aqui", "agora", "hoje", "ainda",
+    "gente", "pra", "tudo", "meu", "minha", "seu", "sua", "nosso",
+    "quer", "pode", "vai", "vem", "olha", "ficou", "demais",
+    "arrasta", "comenta", "salva", "curte", "segue", "link na bio",
+    "brasil", "brasileir", "sao paulo", "são paulo", "rio de janeiro",
+    "emagrecer", "saude", "saúde", "beleza", "cabelo", "pele", "corpo",
+    "treino", "dieta", "receita", "dica", "fica", "bora",
+    "ção", "ções", "ão", "ões", "ência", "ância",
+  ];
+  return ptWords.some((w) => lower.includes(w));
+}
+
+function looksPortugueseName(name: string): boolean {
+  if (!name) return false;
+  const lower = name.toLowerCase();
+  const brNameParts = [
+    "silva", "santos", "oliveira", "souza", "costa", "rodrigues", "ferreira",
+    "almeida", "pereira", "lima", "gomes", "ribeiro", "martins", "carvalho",
+    "araujo", "araújo", "melo", "barbosa", "cardoso", "nascimento",
+    "ana", "maria", "fernanda", "camila", "juliana", "patricia", "patrícia",
+    "lucas", "matheus", "rafael", "gabriel", "bruno", "pedro", "thiago",
+    "leticia", "letícia", "beatriz", "larissa", "bianca", "nanda", "juh",
+    "oficial", "fit", "blog", "dra", "dicas",
+  ];
+  return brNameParts.some((w) => lower.includes(w));
+}
+
+export async function createSearch(keywords: string[], platforms: string[], region: string = "brasil"): Promise<{ id?: string; error?: string }> {
   const supabase = await createClient();
 
   const { data: { user } } = await supabase.auth.getUser();
@@ -85,7 +118,9 @@ export async function createSearch(keywords: string[], platforms: string[]): Pro
 
   if (apiKey) {
     try {
-      const query = keywords.join(" ");
+      // Append region context to bias API results toward local creators
+      const baseQuery = keywords.join(" ");
+      const query = region === "global" ? baseQuery : `${baseQuery} ${region}`;
       const allMinedInfluencers: MinedInfluencer[] = [];
 
       // Instagram: search reels by keyword → extract creators with metrics
@@ -100,9 +135,27 @@ export async function createSearch(keywords: string[], platforms: string[]): Pro
         allMinedInfluencers.push(...ttResults);
       }
 
+      // Filter by region heuristics (Portuguese content/names for Brasil)
+      const filtered = region === "global"
+        ? allMinedInfluencers
+        : allMinedInfluencers.filter((r) => {
+            const captionMatch = looksPortuguese(r.sample_caption);
+            const nameMatch = looksPortugueseName(r.display_name) || looksPortugueseName(r.handle);
+            return captionMatch || nameMatch;
+          });
+
+      // Fallback: if filter is too aggressive (< 3 results), keep all but sort PT first
+      const finalResults = filtered.length >= 3
+        ? filtered
+        : allMinedInfluencers.sort((a, b) => {
+            const aScore = (looksPortuguese(a.sample_caption) ? 2 : 0) + (looksPortugueseName(a.display_name) ? 1 : 0);
+            const bScore = (looksPortuguese(b.sample_caption) ? 2 : 0) + (looksPortugueseName(b.display_name) ? 1 : 0);
+            return bScore - aScore;
+          });
+
       // Insert all results with full metrics
-      if (allMinedInfluencers.length > 0) {
-        const rows = allMinedInfluencers.map((r) => ({
+      if (finalResults.length > 0) {
+        const rows = finalResults.map((r) => ({
           search_id: searchId,
           tenant_id: tenantUser.tenant_id,
           platform: r.platform,
