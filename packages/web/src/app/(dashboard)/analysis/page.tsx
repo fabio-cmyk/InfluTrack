@@ -11,9 +11,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import { Search, ExternalLink, Heart, MessageCircle, Eye, CheckCircle, UserPlus, History, Sparkles, Loader2 } from "lucide-react";
+import { Search, ExternalLink, Heart, MessageCircle, Eye, CheckCircle, UserPlus, History, Sparkles, Loader2, TrendingUp } from "lucide-react";
 import { EmptyState } from "@/components/shared/empty-state";
-import { analyzeProfile, getAnalysisHistory, type AnalysisResult, type AnalysisEntry } from "./actions";
+import { analyzeProfile, getAnalysisHistory, saveAIReport, type AnalysisResult, type AnalysisEntry } from "./actions";
 
 function fmtNum(n: number): string {
   if (n >= 1000000) return `${(n / 1000000).toFixed(1)}M`;
@@ -24,6 +24,46 @@ function fmtNum(n: number): string {
 function proxyImg(url: string): string {
   if (!url) return "";
   return `/api/proxy-image?url=${encodeURIComponent(url)}`;
+}
+
+function extractAIScore(markdown: string): { total: number; dimensions: { name: string; score: number; weight: string }[] } | null {
+  // Try to find score table in markdown — looks for patterns like "| Dimensão | Nota | Peso |"
+  // and "Score final" or "score ponderado" lines
+  const dimensions: { name: string; score: number; weight: string }[] = [];
+  let total = 0;
+
+  // Match table rows with dimension scores: "| Alinhamento... | 75 | 30% |" or similar
+  const tableRows = markdown.match(/\|[^|]+\|\s*(\d{1,3}(?:[.,]\d+)?)\s*(?:\/\s*100)?\s*\|[^|]*\d+%[^|]*\|/g);
+  if (tableRows) {
+    for (const row of tableRows) {
+      const cells = row.split("|").filter(Boolean).map(c => c.trim());
+      if (cells.length >= 3) {
+        const name = cells[0].replace(/\*\*/g, "").trim();
+        const scoreStr = cells[1].replace(/[^\d.,]/g, "").replace(",", ".");
+        const score = parseFloat(scoreStr);
+        const weightMatch = cells[2]?.match(/(\d+)%/);
+        if (!isNaN(score) && name && weightMatch) {
+          dimensions.push({ name, score, weight: `${weightMatch[1]}%` });
+        }
+      }
+    }
+  }
+
+  // Match total score: "Score final ponderado: 72" or "**Score Final:** 72/100" etc
+  const totalMatch = markdown.match(/(?:score\s*final|total|ponderado)[^:]*[:：]\s*\**\s*(\d{1,3}(?:[.,]\d+)?)/i)
+    || markdown.match(/(\d{1,3})\s*\/\s*100\s*\**\s*(?:pontos|pts|score final)/i);
+  if (totalMatch) {
+    total = Math.round(parseFloat(totalMatch[1].replace(",", ".")));
+  } else if (dimensions.length > 0) {
+    // Calculate from dimensions
+    total = Math.round(dimensions.reduce((sum, d) => {
+      const w = parseInt(d.weight) / 100;
+      return sum + d.score * w;
+    }, 0));
+  }
+
+  if (dimensions.length === 0 && total === 0) return null;
+  return { total, dimensions };
 }
 
 function renderMarkdown(text: string): string {
@@ -104,8 +144,12 @@ export default function AnalysisPage() {
             comment_count: p.comment_count,
             play_count: p.play_count,
           })),
-          comments: [],
-          brandKeywords: [],
+          comments: (result.comments || []).slice(0, 30).map(c => ({
+            username: c.username,
+            text: c.text,
+            likes: c.likes,
+          })),
+          brandKeywords: result.brandKeywords || [],
         }),
       });
 
@@ -119,6 +163,7 @@ export default function AnalysisPage() {
 
       const decoder = new TextDecoder();
       let buffer = "";
+      let fullMarkdown = "";
 
       while (true) {
         const { done, value } = await reader.read();
@@ -135,6 +180,7 @@ export default function AnalysisPage() {
             if (data.done) break;
             if (data.error) throw new Error(data.error);
             if (data.text) {
+              fullMarkdown += data.text;
               setAiMarkdown(prev => prev + data.text);
               if (aiContainerRef.current) {
                 aiContainerRef.current.scrollTop = aiContainerRef.current.scrollHeight;
@@ -145,6 +191,11 @@ export default function AnalysisPage() {
             throw e;
           }
         }
+      }
+
+      // Save AI report to history
+      if (fullMarkdown) {
+        saveAIReport(result.profile.handle, result.profile.platform, fullMarkdown);
       }
     } catch (err) {
       setAiError(String(err));
@@ -472,27 +523,70 @@ export default function AnalysisPage() {
                       </div>
                     )}
 
-                    {aiMarkdown && (
-                      <div className="space-y-3">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <Sparkles className="h-4 w-4 text-primary" />
-                            <span className="text-sm font-bold">Relatorio IA</span>
-                            {aiLoading && <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />}
+                    {aiMarkdown && (() => {
+                      const aiScore = !aiLoading ? extractAIScore(aiMarkdown) : null;
+                      return (
+                        <div className="space-y-4">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <Sparkles className="h-4 w-4 text-primary" />
+                              <span className="text-sm font-bold">Relatorio IA</span>
+                              {aiLoading && <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />}
+                            </div>
+                            {!aiLoading && (
+                              <Button variant="ghost" size="sm" onClick={handleGenerateAI}>
+                                Regenerar
+                              </Button>
+                            )}
                           </div>
-                          {!aiLoading && (
-                            <Button variant="ghost" size="sm" onClick={handleGenerateAI}>
-                              Regenerar
-                            </Button>
+
+                          {aiScore && aiScore.dimensions.length > 0 && (
+                            <div className="grid gap-4 md:grid-cols-[200px_1fr] rounded-lg border border-border bg-muted/20 p-5">
+                              {/* Score circle */}
+                              <div className="flex flex-col items-center justify-center">
+                                <div className={`w-28 h-28 rounded-full border-4 flex flex-col items-center justify-center ${
+                                  aiScore.total >= 70 ? "border-[#22C55E]" : aiScore.total >= 40 ? "border-[#F59E0B]" : "border-[#EF4444]"
+                                }`}>
+                                  <span className={`text-3xl font-extrabold ${
+                                    aiScore.total >= 70 ? "text-[#22C55E]" : aiScore.total >= 40 ? "text-[#F59E0B]" : "text-[#EF4444]"
+                                  }`}>{aiScore.total}</span>
+                                  <span className="text-[10px] text-muted-foreground">/100</span>
+                                </div>
+                                <div className="flex items-center gap-1 mt-2">
+                                  <TrendingUp className="h-3 w-3 text-primary" />
+                                  <span className="text-xs font-semibold text-muted-foreground">Score IA</span>
+                                </div>
+                              </div>
+                              {/* Dimension bars */}
+                              <div className="space-y-3 flex flex-col justify-center">
+                                {aiScore.dimensions.map((dim, i) => (
+                                  <div key={i} className="space-y-1">
+                                    <div className="flex justify-between text-xs">
+                                      <span className="font-medium">{dim.name}</span>
+                                      <span className="text-muted-foreground">{Math.round(dim.score)}/100 <span className="text-[10px]">({dim.weight})</span></span>
+                                    </div>
+                                    <div className="h-2 rounded-full bg-muted overflow-hidden">
+                                      <div
+                                        className={`h-full rounded-full transition-all duration-500 ${
+                                          dim.score >= 70 ? "bg-[#22C55E]" : dim.score >= 40 ? "bg-[#F59E0B]" : "bg-[#EF4444]"
+                                        }`}
+                                        style={{ width: `${Math.min(100, dim.score)}%` }}
+                                      />
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
                           )}
+
+                          <div
+                            ref={aiContainerRef}
+                            className="prose prose-sm max-w-none max-h-[600px] overflow-y-auto rounded-lg border border-border bg-muted/30 p-6"
+                            dangerouslySetInnerHTML={{ __html: renderMarkdown(aiMarkdown) }}
+                          />
                         </div>
-                        <div
-                          ref={aiContainerRef}
-                          className="prose prose-sm max-w-none max-h-[600px] overflow-y-auto rounded-lg border border-border bg-muted/30 p-6"
-                          dangerouslySetInnerHTML={{ __html: renderMarkdown(aiMarkdown) }}
-                        />
-                      </div>
-                    )}
+                      );
+                    })()}
                   </div>
                 )}
               </div>

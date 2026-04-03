@@ -5,12 +5,14 @@ import { createClient } from "@/lib/supabase/server";
 import {
   getInstagramProfile, getTikTokProfile,
   getInstagramPosts, getTikTokVideos,
-  type ScrapedProfile, type ScrapedPost,
+  getInstagramComments, getTikTokComments,
+  type ScrapedProfile, type ScrapedPost, type ScrapedComment,
 } from "@/lib/scrapecreators";
 
 export type AnalysisResult = {
   profile: ScrapedProfile;
   posts: ScrapedPost[];
+  comments: ScrapedComment[];
   metrics: {
     avg_likes: number;
     avg_comments: number;
@@ -22,6 +24,7 @@ export type AnalysisResult = {
   fit_classification: string;
   strengths: string[];
   concerns: string[];
+  brandKeywords: string[];
 };
 
 export type AnalysisEntry = {
@@ -148,6 +151,21 @@ export async function analyzeProfile(handle: string, platform: string): Promise<
       ? await getTikTokVideos(handle, apiKey, 12)
       : await getInstagramPosts(handle, apiKey, 12);
 
+    // Fetch comments from top 3 posts
+    let comments: ScrapedComment[] = [];
+    try {
+      const topPosts = posts.slice(0, 3);
+      const commentPromises = topPosts.map((p) =>
+        platform === "tiktok"
+          ? getTikTokComments(p.id, apiKey, 10)
+          : getInstagramComments(p.code, apiKey, 10)
+      );
+      const commentResults = await Promise.all(commentPromises);
+      comments = commentResults.flat();
+    } catch {
+      // Comments are optional — continue without them
+    }
+
     // Calculate metrics
     const metrics = calculateMetrics(posts, profile.followers);
     const ratio = profile.following > 0 ? Number((profile.followers / profile.following).toFixed(1)) : 0;
@@ -167,11 +185,13 @@ export async function analyzeProfile(handle: string, platform: string): Promise<
     const result: AnalysisResult = {
       profile,
       posts,
+      comments,
       metrics: { ...metrics, ratio },
       fit_score: score,
       fit_classification: classification,
       strengths,
       concerns,
+      brandKeywords,
     };
 
     // Save to history
@@ -196,4 +216,29 @@ export async function analyzeProfile(handle: string, platform: string): Promise<
   } catch (err) {
     return { error: `Erro ao analisar perfil: ${String(err)}` };
   }
+}
+
+export async function saveAIReport(handle: string, platform: string, aiMarkdown: string): Promise<{ success: boolean }> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { success: false };
+
+  const { data: tenantUser } = await supabase
+    .from("tenant_users")
+    .select("tenant_id")
+    .eq("user_id", user.id)
+    .single();
+  if (!tenantUser) return { success: false };
+
+  // Update the most recent analysis for this handle with the AI report
+  await supabase
+    .from("analysis_history")
+    .update({ ai_report: aiMarkdown })
+    .eq("tenant_id", tenantUser.tenant_id)
+    .eq("handle", handle)
+    .eq("platform", platform)
+    .order("created_at", { ascending: false })
+    .limit(1);
+
+  return { success: true };
 }
