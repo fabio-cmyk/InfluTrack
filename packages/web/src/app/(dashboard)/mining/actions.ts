@@ -103,6 +103,33 @@ function looksPortugueseName(name: string): boolean {
 // Brazilian hashtags that strongly signal influencer content
 const BR_SIGNAL_HASHTAGS = ["publipost", "publi", "recebidos", "influenciadordigital", "parceria", "blogueira"];
 
+// Instagram categories that indicate brands/stores (not creators)
+const BRAND_CATEGORIES = [
+  "product/service", "shopping & retail", "e-commerce website", "clothing store",
+  "health/beauty", "local business", "company", "brand", "retail company",
+  "grocery store", "shopping mall", "commercial & industrial",
+];
+
+// Bio patterns that indicate brands/stores
+const BRAND_BIO_PATTERNS = [
+  "loja", "compre", "compra", "frete", "entrega", "atacado", "varejo",
+  "www.", ".com.br", "encomendas", "pedidos", "whatsapp", "catalogo",
+  "pronta entrega", "pix", "parcelamos", "vendas", "outlet",
+];
+
+function looksLikeBrand(category: string | null, bio: string | null): boolean {
+  if (category && BRAND_CATEGORIES.some((b) => category.toLowerCase().includes(b))) {
+    return true;
+  }
+  if (bio) {
+    const lower = bio.toLowerCase();
+    const matchCount = BRAND_BIO_PATTERNS.filter((p) => lower.includes(p)).length;
+    // If bio matches 3+ brand patterns, it's likely a store
+    return matchCount >= 3;
+  }
+  return false;
+}
+
 export async function createSearch(
   keywords: string[],
   platforms: string[],
@@ -150,25 +177,37 @@ export async function createSearch(
 
       // ── INSTAGRAM ──────────────────────────────────────────
       if (platforms.includes("instagram")) {
-        // Primary search: user keywords (API uses Google Search internally)
-        const igResults = await mineInstagramByKeyword(baseQuery, apiKey);
-        allMinedInfluencers.push(...igResults);
-
-        // Secondary search: if Brasil + few results, try with BR hashtag to find more
-        if (isBrasil && igResults.length < 5) {
-          try {
-            const brQuery = `${BR_SIGNAL_HASHTAGS[0]} ${baseQuery}`;
-            const brResults = await mineInstagramByKeyword(brQuery, apiKey);
-            const existingHandles = new Set(allMinedInfluencers.map((r) => r.handle));
-            for (const r of brResults) {
-              if (!existingHandles.has(r.handle)) {
-                allMinedInfluencers.push(r);
-                existingHandles.add(r.handle);
-              }
+        const existingHandles = new Set<string>();
+        const addResults = (results: MinedInfluencer[]) => {
+          for (const r of results) {
+            if (!existingHandles.has(r.handle)) {
+              allMinedInfluencers.push(r);
+              existingHandles.add(r.handle);
             }
-          } catch {
-            // BR secondary search failed, continue with primary results
           }
+        };
+
+        // Multiple search queries to maximize discovery
+        const queries = [baseQuery];
+        if (isBrasil) {
+          queries.push(
+            `${baseQuery} influenciadora`,
+            `${baseQuery} resenha`,
+            `${baseQuery} dica`,
+          );
+          // Add BR signal hashtag variations
+          for (const tag of BR_SIGNAL_HASHTAGS.slice(0, 2)) {
+            queries.push(`${tag} ${baseQuery}`);
+          }
+        }
+
+        // Run all searches (parallel for speed)
+        const searchPromises = queries.map((q) =>
+          mineInstagramByKeyword(q, apiKey).catch(() => [] as MinedInfluencer[])
+        );
+        const allResults = await Promise.all(searchPromises);
+        for (const results of allResults) {
+          addResults(results);
         }
       }
 
@@ -269,31 +308,43 @@ export async function createSearch(
             return bScore - aScore;
           });
 
-      // ── ENRICH INSTAGRAM PROFILES (FASE 2) ─────────────────
-      // For top IG results, fetch full profile for category, city, bio
-      const enrichmentMap = new Map<string, { category: string | null; city: string | null; bio: string }>();
-      if (isBrasil && apiKey) {
-        const igResults = finalResults.filter((r) => r.platform === "instagram").slice(0, 15);
-        const enrichPromises = igResults.map(async (r) => {
-          try {
-            const enriched = await getInstagramEnrichedProfile(r.handle, apiKey);
-            enrichmentMap.set(r.handle, {
-              category: enriched.category_name,
-              city: enriched.business_city,
-              bio: enriched.biography,
-            });
-          } catch {
-            // Enrichment failed for this profile, skip
-          }
-        });
-        await Promise.all(enrichPromises);
+      // ── ENRICH INSTAGRAM PROFILES ─────────────────────────
+      // Enrich all IG results to get category, city, bio — and filter out brands/stores
+      const enrichmentMap = new Map<string, { category: string | null; city: string | null; bio: string; isBrand: boolean }>();
+      const igHandles = finalResults.filter((r) => r.platform === "instagram");
+      if (apiKey && igHandles.length > 0) {
+        // Enrich in batches of 10 to avoid overwhelming the API
+        for (let i = 0; i < igHandles.length; i += 10) {
+          const batch = igHandles.slice(i, i + 10);
+          const enrichPromises = batch.map(async (r) => {
+            try {
+              const enriched = await getInstagramEnrichedProfile(r.handle, apiKey);
+              enrichmentMap.set(r.handle, {
+                category: enriched.category_name,
+                city: enriched.business_city,
+                bio: enriched.biography,
+                isBrand: looksLikeBrand(enriched.category_name, enriched.biography),
+              });
+            } catch {
+              // Enrichment failed for this profile, skip
+            }
+          });
+          await Promise.all(enrichPromises);
+        }
       }
 
+      // Filter out brands/stores from results
+      const cleanResults = finalResults.filter((r) => {
+        if (r.platform !== "instagram") return true;
+        const enrichment = enrichmentMap.get(r.handle);
+        if (!enrichment) return true; // keep if we couldn't enrich
+        return !enrichment.isBrand;
+      });
+
       // ── INSERT RESULTS ─────────────────────────────────────
-      if (finalResults.length > 0) {
-        const rows = finalResults.map((r) => {
+      if (cleanResults.length > 0) {
+        const rows = cleanResults.map((r) => {
           const enrichment = enrichmentMap.get(r.handle);
-          // Determine niche: from enrichment category, or from selected niche, or null
           let estimatedNiche = nicheLabel || null;
           if (enrichment?.category && !estimatedNiche) {
             estimatedNiche = enrichment.category;
@@ -320,7 +371,6 @@ export async function createSearch(
               content_found: r.content_found,
               sample_caption: r.sample_caption,
               is_verified: r.is_verified,
-              // Enrichment data
               ...(enrichment && {
                 ig_category: enrichment.category,
                 ig_city: enrichment.city,
