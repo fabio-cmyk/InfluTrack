@@ -107,7 +107,8 @@ export async function createSearch(
   keywords: string[],
   platforms: string[],
   region: string = "brasil",
-  niche: string = ""
+  niche: string = "",
+  followerCount: string = ""
 ): Promise<{ id?: string; error?: string }> {
   const supabase = await createClient();
 
@@ -128,7 +129,7 @@ export async function createSearch(
       tenant_id: tenantUser.tenant_id,
       keywords,
       platforms,
-      filters: { region, niche: niche || null },
+      filters: { region, niche: niche || null, followerCount: followerCount || null },
     })
     .select("id")
     .single();
@@ -180,6 +181,7 @@ export async function createSearch(
               creatorCountry: "BR",
               audienceCountry: "BR",
               sortBy: "follower_count",
+              ...(followerCount && { followerCount }),
               page: 1,
             });
             // Convert PopularCreator → MinedInfluencer format
