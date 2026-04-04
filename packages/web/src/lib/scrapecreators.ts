@@ -133,7 +133,7 @@ export async function getInstagramEnrichedProfile(handle: string, apiKey: string
 
 export async function getTikTokProfile(handle: string, apiKey: string): Promise<ScrapedProfile> {
   const cleanHandle = handle.replace("@", "").replace("https://tiktok.com/@", "").replace("https://www.tiktok.com/@", "").trim();
-  const data = await apiCall(`/v1/tiktok/profile?username=${encodeURIComponent(cleanHandle)}`, apiKey);
+  const data = await apiCall(`/v1/tiktok/profile?handle=${encodeURIComponent(cleanHandle)}`, apiKey);
   const userInfo = (data.data as Record<string, unknown>) || {};
   const user = (userInfo.user as Record<string, unknown>) || {};
   const stats = (userInfo.stats as Record<string, number>) || {};
@@ -199,7 +199,7 @@ export async function getInstagramPosts(handle: string, apiKey: string, count = 
 }
 
 export async function getTikTokVideos(handle: string, apiKey: string, count = 12): Promise<ScrapedPost[]> {
-  const data = await apiCall(`/v3/tiktok/profile/videos?username=${encodeURIComponent(handle)}&count=${count}`, apiKey);
+  const data = await apiCall(`/v3/tiktok/profile/videos?handle=${encodeURIComponent(handle)}&count=${count}`, apiKey);
   const items = (data.videos as Array<Record<string, unknown>>) || (data.itemList as Array<Record<string, unknown>>) || (data.data as Array<Record<string, unknown>>) || [];
 
   return items.map((p) => {
