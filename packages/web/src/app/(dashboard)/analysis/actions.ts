@@ -50,8 +50,8 @@ export async function getAnalysisHistory(): Promise<{ data: AnalysisEntry[] }> {
   return { data: data || [] };
 }
 
-function calculateMetrics(posts: ScrapedPost[], followers: number) {
-  if (posts.length === 0) return { avg_likes: 0, avg_comments: 0, avg_views: 0, engagement_rate: 0 };
+function calculateMetrics(posts: ScrapedPost[], followers: number, platform: string) {
+  if (posts.length === 0) return { avg_likes: 0, avg_comments: 0, avg_views: 0, avg_shares: 0, engagement_rate: 0 };
 
   const totalLikes = posts.reduce((s, p) => s + p.like_count, 0);
   const totalComments = posts.reduce((s, p) => s + p.comment_count, 0);
@@ -60,24 +60,35 @@ function calculateMetrics(posts: ScrapedPost[], followers: number) {
   const avg_likes = Math.round(totalLikes / posts.length);
   const avg_comments = Math.round(totalComments / posts.length);
   const avg_views = Math.round(totalViews / posts.length);
+  const avg_shares = 0; // TikTok shares not available in current ScrapedPost type
 
-  // Engagement rate = (avg_likes + avg_comments) / followers * 100
-  const engagement_rate = followers > 0
-    ? Number((((avg_likes + avg_comments) / followers) * 100).toFixed(2))
-    : 0;
+  // TikTok: engagement = (likes+comments) / views (industry standard)
+  // Instagram: engagement = (likes+comments) / followers
+  let engagement_rate: number;
+  if (platform === "tiktok") {
+    engagement_rate = avg_views > 0
+      ? Number((((avg_likes + avg_comments) / avg_views) * 100).toFixed(2))
+      : 0;
+  } else {
+    engagement_rate = followers > 0
+      ? Number((((avg_likes + avg_comments) / followers) * 100).toFixed(2))
+      : 0;
+  }
 
-  return { avg_likes, avg_comments, avg_views, engagement_rate };
+  return { avg_likes, avg_comments, avg_views, avg_shares, engagement_rate };
 }
 
 function calculateFitScore(
   profile: ScrapedProfile,
   metrics: ReturnType<typeof calculateMetrics>,
   posts: ScrapedPost[],
-  brandKeywords: string[]
+  brandKeywords: string[],
+  platform: string
 ): { score: number; strengths: string[]; concerns: string[] } {
   let score = 50;
   const strengths: string[] = [];
   const concerns: string[] = [];
+  const isTikTok = platform === "tiktok";
 
   // Followers
   if (profile.followers >= 500000) { score += 8; strengths.push(`Grande audiencia: ${(profile.followers / 1000).toFixed(0)}K seguidores`); }
@@ -91,20 +102,40 @@ function calculateFitScore(
   else if (ratio > 5) { score += 4; strengths.push(`Bom ratio: ${ratio.toFixed(1)}:1`); }
   else if (ratio < 1) { score -= 8; concerns.push("Segue mais do que e seguido"); }
 
-  // Engagement
-  if (metrics.engagement_rate > 3) { score += 10; strengths.push(`Engajamento alto: ${metrics.engagement_rate}%`); }
-  else if (metrics.engagement_rate > 1) { score += 5; strengths.push(`Engajamento bom: ${metrics.engagement_rate}%`); }
-  else if (metrics.engagement_rate < 0.5 && profile.followers > 10000) { score -= 5; concerns.push(`Engajamento baixo: ${metrics.engagement_rate}%`); }
+  // Engagement — different thresholds per platform
+  if (isTikTok) {
+    // TikTok engagement = (likes+comments)/views — thresholds are higher
+    if (metrics.engagement_rate > 5) { score += 10; strengths.push(`Engajamento alto: ${metrics.engagement_rate}% (sobre views)`); }
+    else if (metrics.engagement_rate > 2) { score += 5; strengths.push(`Engajamento bom: ${metrics.engagement_rate}% (sobre views)`); }
+    else if (metrics.engagement_rate < 1) { score -= 5; concerns.push(`Engajamento baixo: ${metrics.engagement_rate}% (sobre views)`); }
+  } else {
+    if (metrics.engagement_rate > 3) { score += 10; strengths.push(`Engajamento alto: ${metrics.engagement_rate}%`); }
+    else if (metrics.engagement_rate > 1) { score += 5; strengths.push(`Engajamento bom: ${metrics.engagement_rate}%`); }
+    else if (metrics.engagement_rate < 0.5 && profile.followers > 10000) { score -= 5; concerns.push(`Engajamento baixo: ${metrics.engagement_rate}%`); }
+  }
 
   // Verified
   if (profile.is_verified) { score += 5; strengths.push("Perfil verificado"); }
 
-  // Content volume
-  if (profile.posts_count > 500) { score += 3; strengths.push(`Conteudo consistente: ${profile.posts_count} posts`); }
-  else if (profile.posts_count < 30) { score -= 3; concerns.push(`Pouco conteudo: ${profile.posts_count} posts`); }
+  // Content volume — TikTok has different thresholds
+  if (isTikTok) {
+    if (profile.posts_count > 200) { score += 3; strengths.push(`Conteudo consistente: ${profile.posts_count} videos`); }
+    else if (profile.posts_count < 20) { score -= 3; concerns.push(`Pouco conteudo: ${profile.posts_count} videos`); }
+  } else {
+    if (profile.posts_count > 500) { score += 3; strengths.push(`Conteudo consistente: ${profile.posts_count} posts`); }
+    else if (profile.posts_count < 30) { score -= 3; concerns.push(`Pouco conteudo: ${profile.posts_count} posts`); }
+  }
+
+  // TikTok: avg views is the key metric
+  if (isTikTok) {
+    if (metrics.avg_views > 50000) { score += 8; strengths.push(`Views medias altas: ${(metrics.avg_views / 1000).toFixed(0)}K por video`); }
+    else if (metrics.avg_views > 10000) { score += 5; strengths.push(`Boas views: ${(metrics.avg_views / 1000).toFixed(0)}K por video`); }
+    else if (metrics.avg_views > 1000) { score += 2; }
+    else if (metrics.avg_views < 500 && profile.followers > 10000) { score -= 3; concerns.push(`Views baixas para o tamanho: ${metrics.avg_views} views medias`); }
+  }
 
   // Average likes
-  if (metrics.avg_likes > 5000) { score += 5; strengths.push(`Media de ${(metrics.avg_likes / 1000).toFixed(1)}K likes por post`); }
+  if (metrics.avg_likes > 5000) { score += 5; strengths.push(`Media de ${(metrics.avg_likes / 1000).toFixed(1)}K likes por ${isTikTok ? "video" : "post"}`); }
   else if (metrics.avg_likes > 1000) { score += 2; }
 
   // Brand keyword match
@@ -166,8 +197,8 @@ export async function analyzeProfile(handle: string, platform: string): Promise<
       // Comments are optional — continue without them
     }
 
-    // Calculate metrics
-    const metrics = calculateMetrics(posts, profile.followers);
+    // Calculate metrics (platform-specific engagement)
+    const metrics = calculateMetrics(posts, profile.followers, platform);
     const ratio = profile.following > 0 ? Number((profile.followers / profile.following).toFixed(1)) : 0;
 
     // Get brand keywords for fit score
@@ -179,7 +210,7 @@ export async function analyzeProfile(handle: string, platform: string): Promise<
     const brandKeywords = (brandAsset?.brand_keywords as string[]) || [];
 
     // Calculate fit score
-    const { score, strengths, concerns } = calculateFitScore(profile, metrics, posts, brandKeywords);
+    const { score, strengths, concerns } = calculateFitScore(profile, metrics, posts, brandKeywords, platform);
     const classification = score >= 70 ? "recommended" : score >= 40 ? "neutral" : "not_recommended";
 
     const result: AnalysisResult = {

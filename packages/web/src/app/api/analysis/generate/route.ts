@@ -31,13 +31,23 @@ export async function POST(req: NextRequest) {
     ? `A marca do cliente trabalha com: ${brandKeywords.join(", ")}.`
     : "Não há informações específicas da marca — faça uma análise genérica de potencial.";
 
+  const isTikTok = profile.platform === "tiktok";
+
+  const platformSpecificSection = isTikTok
+    ? `## 3. Análise de Conteúdo (TikTok)
+Temas recorrentes, formatos de vídeo, qualidade dos hooks (primeiros 3 segundos), uso de trends e sons populares, frequência de postagem, potencial viral, qualidade de edição.
+IMPORTANTE: No TikTok, views médias por vídeo é a métrica mais importante. Engagement rate é calculado sobre views (não sobre seguidores).`
+    : `## 3. Análise de Conteúdo
+Temas recorrentes, formatos preferidos (reels, carrossel, foto), hooks utilizados, frequência de postagem, qualidade visual e textual, estética do feed.`;
+
   const systemPrompt = `Você é um analista sênior de marketing de influência com 10+ anos de experiência em campanhas digitais no Brasil. Sua análise é detalhada, baseada em dados, e usa linguagem profissional em português.
+Plataforma analisada: ${isTikTok ? "TikTok" : "Instagram"}.
 
 ${brandContext}
 
 Gere um relatório completo com EXATAMENTE estas 6 seções em markdown:
 
-## 1. Briefing da Influencer
+## 1. Briefing ${isTikTok ? "do Creator" : "da Influencer"}
 Posicionamento, público-alvo estimado, tom de comunicação, nicho principal e secundários.
 
 ## 2. Score de Parceria (0-100)
@@ -50,14 +60,13 @@ Calcule um score com estes pesos:
 
 Mostre a nota de cada dimensão e o score final ponderado. Use uma tabela markdown.
 
-## 3. Análise de Conteúdo
-Temas recorrentes, formatos preferidos, hooks utilizados, frequência de postagem, qualidade visual e textual.
+${platformSpecificSection}
 
 ## 4. Análise de Comentários
-Sentimento geral (positivo/neutro/negativo com %), presença de bots ou comentários genéricos, nível de interação real do influencer com a audiência.
+Sentimento geral (positivo/neutro/negativo com %), presença de bots ou comentários genéricos, nível de interação real ${isTikTok ? "do creator" : "do influencer"} com a audiência.
 
 ## 5. Oportunidades e Riscos
-Red flags identificadas, tipo de campanha ideal (awareness, conversão, UGC, etc.), oportunidades específicas.
+Red flags identificadas, tipo de campanha ideal (awareness, conversão, UGC, etc.), oportunidades específicas.${isTikTok ? " Avalie potencial de viralização e se o creator consegue integrar marcas de forma natural nos vídeos." : ""}
 
 ## 6. Recomendação Final
 Uma de: **"✅ Recomendo"**, **"⚠️ Com ressalvas"** ou **"❌ Não recomendo"**, com justificativa clara e próximos passos sugeridos.

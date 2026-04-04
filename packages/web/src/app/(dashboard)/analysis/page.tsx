@@ -11,7 +11,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import { Search, ExternalLink, Heart, MessageCircle, Eye, CheckCircle, UserPlus, History, Sparkles, Loader2, TrendingUp } from "lucide-react";
+import { Search, ExternalLink, Heart, MessageCircle, Eye, CheckCircle, UserPlus, History, Sparkles, Loader2, TrendingUp, Share2 } from "lucide-react";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { EmptyState } from "@/components/shared/empty-state";
 import { analyzeProfile, getAnalysisHistory, saveAIReport, type AnalysisResult, type AnalysisEntry } from "./actions";
 
@@ -210,34 +211,45 @@ export default function AnalysisPage() {
     <div className="space-y-6">
       <PageHeader title="Analise de Perfil" description="Analise completa de influencers com metricas e score de fit" />
 
-      {/* Search */}
-      <Card className="shadow-sm">
-        <CardContent className="pt-6">
-          <div className="flex gap-3 items-end">
-            <div className="flex-1 space-y-2">
-              <Label className="text-sm font-semibold">Handle {platform === "instagram" ? "Instagram" : "TikTok"}</Label>
-              <Input
-                value={handle}
-                onChange={(e) => setHandle(e.target.value)}
-                placeholder={platform === "instagram" ? "@username" : "@handle"}
-                onKeyDown={(e) => e.key === "Enter" && handleAnalyze()}
-              />
+      {/* Platform Tabs + Search */}
+      <Tabs defaultValue="instagram" onValueChange={(v) => { setPlatform(v as string); setResult(null); setError(null); }}>
+        <TabsList className="w-full justify-start mb-3">
+          <TabsTrigger value="instagram">
+            <svg className="mr-1.5 h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="20" height="20" x="2" y="2" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" x2="17.51" y1="6.5" y2="6.5"/></svg>
+            Instagram
+          </TabsTrigger>
+          <TabsTrigger value="tiktok">
+            <svg className="mr-1.5 h-4 w-4" viewBox="0 0 24 24" fill="currentColor"><path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-2.88 2.5 2.89 2.89 0 0 1-2.88-2.88 2.89 2.89 0 0 1 2.88-2.88c.28 0 .54.04.79.1v-3.5a6.37 6.37 0 0 0-.79-.05A6.34 6.34 0 0 0 3.15 15.2a6.34 6.34 0 0 0 6.34 6.34 6.34 6.34 0 0 0 6.34-6.34V8.73a8.19 8.19 0 0 0 4.76 1.52v-3.4a4.85 4.85 0 0 1-1-.16z"/></svg>
+            TikTok
+          </TabsTrigger>
+        </TabsList>
+
+        <Card className="shadow-sm">
+          <CardContent className="pt-6">
+            <div className="flex gap-3 items-end">
+              <div className="flex-1 space-y-2">
+                <Label className="text-sm font-semibold">Handle {platform === "instagram" ? "Instagram" : "TikTok"}</Label>
+                <Input
+                  value={handle}
+                  onChange={(e) => setHandle(e.target.value)}
+                  placeholder={platform === "instagram" ? "@username" : "@handle"}
+                  onKeyDown={(e) => e.key === "Enter" && handleAnalyze()}
+                />
+              </div>
+              <Button onClick={handleAnalyze} disabled={loading || !handle.trim()} className="bg-gradient-to-r from-primary to-[oklch(0.6_0.18_350)] text-white shrink-0">
+                <Search className="mr-2 h-4 w-4" />
+                {loading ? "Analisando..." : "Analisar Perfil"}
+              </Button>
             </div>
-            <div className="w-36 space-y-2">
-              <Label className="text-sm font-semibold">Plataforma</Label>
-              <select value={platform} onChange={(e) => setPlatform(e.target.value)} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
-                <option value="instagram">Instagram</option>
-                <option value="tiktok">TikTok</option>
-              </select>
-            </div>
-            <Button onClick={handleAnalyze} disabled={loading || !handle.trim()} className="bg-gradient-to-r from-primary to-[oklch(0.6_0.18_350)] text-white shrink-0">
-              <Search className="mr-2 h-4 w-4" />
-              {loading ? "Analisando..." : "Minerar Dados"}
-            </Button>
-          </div>
-          {error && <div className="mt-3 rounded-md bg-destructive/10 p-3 text-sm text-destructive">{error}</div>}
-        </CardContent>
-      </Card>
+            <p className="mt-2 text-xs text-muted-foreground">
+              {platform === "instagram"
+                ? "Analisa perfil, posts recentes, comentarios e calcula engagement sobre seguidores."
+                : "Analisa perfil, videos recentes, comentarios e calcula engagement sobre views (padrao TikTok)."}
+            </p>
+            {error && <div className="mt-3 rounded-md bg-destructive/10 p-3 text-sm text-destructive">{error}</div>}
+          </CardContent>
+        </Card>
+      </Tabs>
 
       {/* Loading */}
       {loading && (
@@ -290,8 +302,17 @@ export default function AnalysisPage() {
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between"><span className="text-muted-foreground">Seguidores</span><span className="font-bold">{fmtNum(result.profile.followers)}</span></div>
                   <div className="flex justify-between"><span className="text-muted-foreground">Seguindo</span><span className="font-bold">{fmtNum(result.profile.following)}</span></div>
-                  <div className="flex justify-between"><span className="text-muted-foreground">Ratio</span><span className="font-bold">{result.metrics.ratio}</span></div>
-                  <div className="flex justify-between"><span className="text-muted-foreground">Posts</span><span className="font-bold">{fmtNum(result.profile.posts_count)}</span></div>
+                  {platform === "tiktok" ? (
+                    <>
+                      <div className="flex justify-between"><span className="text-muted-foreground">Videos</span><span className="font-bold">{fmtNum(result.profile.posts_count)}</span></div>
+                      <div className="flex justify-between"><span className="text-muted-foreground">Views Med.</span><span className="font-bold">{fmtNum(result.metrics.avg_views)}</span></div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="flex justify-between"><span className="text-muted-foreground">Ratio</span><span className="font-bold">{result.metrics.ratio}</span></div>
+                      <div className="flex justify-between"><span className="text-muted-foreground">Posts</span><span className="font-bold">{fmtNum(result.profile.posts_count)}</span></div>
+                    </>
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -301,11 +322,21 @@ export default function AnalysisPage() {
               <CardContent className="pt-5">
                 <p className="text-xs font-semibold text-muted-foreground mb-3">Engajamento</p>
                 <div className="space-y-2 text-sm">
-                  <div className="flex justify-between"><span className="text-muted-foreground">Eng. Rate</span><span className="font-bold">{result.metrics.engagement_rate}%</span></div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Eng. Rate</span>
+                    <span className="font-bold">{result.metrics.engagement_rate}%</span>
+                  </div>
                   <div className="flex justify-between"><span className="text-muted-foreground">Med. Likes</span><span className="font-bold">{fmtNum(result.metrics.avg_likes)}</span></div>
                   <div className="flex justify-between"><span className="text-muted-foreground">Med. Coment.</span><span className="font-bold">{fmtNum(result.metrics.avg_comments)}</span></div>
-                  <div className="flex justify-between"><span className="text-muted-foreground">Med. Views</span><span className="font-bold">{fmtNum(result.metrics.avg_views)}</span></div>
+                  {platform === "tiktok" ? (
+                    <div className="flex justify-between"><span className="text-muted-foreground">Med. Views</span><span className="font-bold">{fmtNum(result.metrics.avg_views)}</span></div>
+                  ) : (
+                    <div className="flex justify-between"><span className="text-muted-foreground">Med. Views</span><span className="font-bold">{result.metrics.avg_views > 0 ? fmtNum(result.metrics.avg_views) : "\u2014"}</span></div>
+                  )}
                 </div>
+                <p className="mt-2 text-[10px] text-muted-foreground">
+                  {platform === "tiktok" ? "Engagement calculado sobre views" : "Engagement calculado sobre seguidores"}
+                </p>
               </CardContent>
             </Card>
 
