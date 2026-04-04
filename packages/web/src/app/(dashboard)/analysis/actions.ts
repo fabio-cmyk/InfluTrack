@@ -185,14 +185,17 @@ export async function analyzeProfile(rawHandle: string, platform: string): Promi
       ? await getTikTokVideos(handle, apiKey, 12)
       : await getInstagramPosts(handle, apiKey, 12);
 
-    // Fetch comments from top 3 posts
+    // Fetch comments from top 5 most engaged posts (up to 20 per post = ~100 total)
+    const sortedByEngagement = [...posts].sort((a, b) =>
+      (b.like_count + b.comment_count) - (a.like_count + a.comment_count)
+    );
     let comments: ScrapedComment[] = [];
     try {
-      const topPosts = posts.slice(0, 3);
+      const topPosts = sortedByEngagement.slice(0, 5);
       const commentPromises = topPosts.map((p) =>
         platform === "tiktok"
-          ? getTikTokComments(p.id, apiKey, 10)
-          : getInstagramComments(p.code, apiKey, 10)
+          ? getTikTokComments(p.id, apiKey, 20)
+          : getInstagramComments(p.code, apiKey, 20)
       );
       const commentResults = await Promise.all(commentPromises);
       comments = commentResults.flat();

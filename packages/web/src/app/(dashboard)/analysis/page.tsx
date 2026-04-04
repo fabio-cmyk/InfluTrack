@@ -98,7 +98,7 @@ export default function AnalysisPage() {
   const [history, setHistory] = useState<AnalysisEntry[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<"posts" | "reels" | "strengths" | "ai">("posts");
+  const [activeTab, setActiveTab] = useState<"posts" | "reels" | "comments" | "strengths" | "ai">("posts");
   const [aiMarkdown, setAiMarkdown] = useState("");
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
@@ -417,7 +417,7 @@ export default function AnalysisPage() {
           <Card className="shadow-sm">
             <CardContent className="pt-0">
               <div className="flex border-b -mx-6 px-6">
-                {([["posts", "Posts Recentes"], ["reels", "Reels & Videos"], ["strengths", "Analise"], ["ai", "Analise IA"]] as const).map(([key, label]) => (
+                {([["posts", "Posts Recentes"], ["reels", "Reels & Videos"], ["comments", `Comentarios (${result.comments?.length || 0})`], ["strengths", "Analise"], ["ai", "Analise IA"]] as const).map(([key, label]) => (
                   <button
                     key={key}
                     onClick={() => setActiveTab(key)}
@@ -475,6 +475,43 @@ export default function AnalysisPage() {
                       ))}
                     </TableBody>
                   </Table>
+                )}
+
+                {activeTab === "comments" && (
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-bold">{result.comments?.length || 0} comentarios dos posts mais engajados</p>
+                    </div>
+                    {(!result.comments || result.comments.length === 0) ? (
+                      <p className="text-sm text-muted-foreground py-8 text-center">Nenhum comentario encontrado.</p>
+                    ) : (
+                      <div className="space-y-2 max-h-[600px] overflow-y-auto">
+                        {result.comments.map((c, i) => (
+                          <div key={i} className="flex items-start gap-3 rounded-lg border p-3">
+                            <div className="h-8 w-8 rounded-full bg-accent flex items-center justify-center text-xs font-bold shrink-0">
+                              {(c.username || "?")[0].toUpperCase()}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs font-semibold">@{c.username}</span>
+                                {c.likes > 0 && (
+                                  <span className="text-[10px] text-muted-foreground flex items-center gap-0.5">
+                                    <Heart className="h-2.5 w-2.5" />{c.likes}
+                                  </span>
+                                )}
+                                {c.timestamp > 0 && (
+                                  <span className="text-[10px] text-muted-foreground">
+                                    {new Date(c.timestamp * 1000).toLocaleDateString("pt-BR")}
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-sm text-muted-foreground mt-0.5">{c.text}</p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 )}
 
                 {activeTab === "strengths" && (
