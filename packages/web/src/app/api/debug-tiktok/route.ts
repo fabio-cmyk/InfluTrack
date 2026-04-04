@@ -14,38 +14,29 @@ export async function GET(req: NextRequest) {
   const apiKey = process.env.SCRAPECREATORS_API_KEY;
   if (!apiKey) return NextResponse.json({ error: "No API key" });
 
-  // Test all 3 endpoints
-  const [profile, videos, videosAlt] = await Promise.all([
-    rawCall(`/v1/tiktok/profile?handle=${encodeURIComponent(handle)}`, apiKey).catch((e) => ({ error: String(e) })),
-    rawCall(`/v3/tiktok/profile/videos?handle=${encodeURIComponent(handle)}&count=3`, apiKey).catch((e) => ({ error: String(e) })),
-    rawCall(`/v3/tiktok/profile/videos?username=${encodeURIComponent(handle)}&count=3`, apiKey).catch((e) => ({ error: String(e) })),
+  // Test ALL variations of video endpoints
+  const [v3Handle, v3Username, v1Handle, v1Username, comments] = await Promise.all([
+    rawCall(`/v3/tiktok/profile/videos?handle=${handle}&count=2`, apiKey).catch((e) => ({ error: String(e) })),
+    rawCall(`/v3/tiktok/profile/videos?username=${handle}&count=2`, apiKey).catch((e) => ({ error: String(e) })),
+    rawCall(`/v1/tiktok/user/posts?handle=${handle}&count=2`, apiKey).catch((e) => ({ error: String(e) })),
+    rawCall(`/v1/tiktok/user/posts?username=${handle}&count=2`, apiKey).catch((e) => ({ error: String(e) })),
+    rawCall(`/v1/tiktok/video/comments?video_id=test&count=1`, apiKey).catch((e) => ({ error: String(e) })),
   ]);
+
+  const summarize = (data: Record<string, unknown>) => ({
+    success: data.success,
+    message: data.message || null,
+    topKeys: Object.keys(data),
+    videoCount: Array.isArray(data.videos) ? data.videos.length : Array.isArray(data.data) ? data.data.length : Array.isArray(data.itemList) ? data.itemList.length : 0,
+    sample: JSON.stringify(data).slice(0, 800),
+  });
 
   return NextResponse.json({
     handle,
-    profile: {
-      success: profile.success,
-      topKeys: Object.keys(profile),
-      dataKeys: profile.data ? Object.keys(profile.data) : null,
-      sample: JSON.stringify(profile).slice(0, 1000),
-    },
-    videos_with_handle: {
-      success: videos.success,
-      message: videos.message,
-      topKeys: Object.keys(videos),
-      hasVideos: !!videos.videos,
-      hasData: !!videos.data,
-      hasItemList: !!videos.itemList,
-      sample: JSON.stringify(videos).slice(0, 1000),
-    },
-    videos_with_username: {
-      success: videosAlt.success,
-      message: videosAlt.message,
-      topKeys: Object.keys(videosAlt),
-      hasVideos: !!videosAlt.videos,
-      hasData: !!videosAlt.data,
-      hasItemList: !!videosAlt.itemList,
-      sample: JSON.stringify(videosAlt).slice(0, 1000),
-    },
+    "v3_videos_handle": summarize(v3Handle),
+    "v3_videos_username": summarize(v3Username),
+    "v1_posts_handle": summarize(v1Handle),
+    "v1_posts_username": summarize(v1Username),
+    "comments_test": summarize(comments),
   });
 }
