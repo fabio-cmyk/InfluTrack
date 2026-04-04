@@ -156,7 +156,10 @@ function calculateFitScore(
   return { score, strengths, concerns };
 }
 
-export async function analyzeProfile(handle: string, platform: string): Promise<{ data?: AnalysisResult; error?: string }> {
+export async function analyzeProfile(rawHandle: string, platform: string): Promise<{ data?: AnalysisResult; error?: string }> {
+  const handle = rawHandle.replace("@", "").replace(/https?:\/\/(www\.)?(instagram\.com|tiktok\.com)\/?@?/g, "").trim();
+  if (!handle) return { error: "Handle obrigatorio" };
+
   const apiKey = process.env.SCRAPECREATORS_API_KEY;
   if (!apiKey) return { error: "SCRAPECREATORS_API_KEY nao configurada" };
 
