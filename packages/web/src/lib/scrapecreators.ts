@@ -218,18 +218,32 @@ export async function getTikTokVideos(handle: string, apiKey: string, count = 12
   return items.map((p) => {
     const stats = (p.stats as Record<string, number>) || (p.statistics as Record<string, number>) || {};
     const video = (p.video as Record<string, unknown>) || {};
-    const cover = (video.cover as string) || (video.originCover as string) || (p.cover as string) || "";
+
+    // TikTok cover can be: string, or object with url_list array
+    const coverObj = video.cover as string | Record<string, unknown> | undefined;
+    const dynamicCover = video.dynamicCover as string | Record<string, unknown> | undefined;
+    const originCover = video.originCover as string | Record<string, unknown> | undefined;
+
+    function extractUrl(val: string | Record<string, unknown> | undefined): string {
+      if (!val) return "";
+      if (typeof val === "string") return val;
+      const urls = val.url_list as string[];
+      return urls?.[0] || "";
+    }
+
+    const thumbnail = extractUrl(originCover) || extractUrl(dynamicCover) || extractUrl(coverObj) || (p.cover as string) || "";
+    const videoId = (p.aweme_id as string) || (p.id as string) || "";
 
     return {
-      id: (p.id as string) || (p.aweme_id as string) || "",
-      code: (p.id as string) || "",
+      id: videoId,
+      code: videoId,
       type: "video",
       caption: (p.desc as string) || (p.title as string) || "",
       like_count: stats.diggCount || stats.digg_count || 0,
       comment_count: stats.commentCount || stats.comment_count || 0,
       play_count: stats.playCount || stats.play_count || 0,
-      thumbnail: cover,
-      url: `https://tiktok.com/@${handle}/video/${p.id}`,
+      thumbnail,
+      url: `https://www.tiktok.com/@${handle}/video/${videoId}`,
       taken_at: (p.createTime as number) || (p.create_time as number) || 0,
     };
   });
@@ -262,7 +276,17 @@ export async function getInstagramComments(shortcode: string, apiKey: string, co
 }
 
 export async function getTikTokComments(videoUrl: string, apiKey: string, count = 20): Promise<ScrapedComment[]> {
-  const data = await apiCall(`/v1/tiktok/video/comments?url=${encodeURIComponent(videoUrl)}`, apiKey);
+  // Try with full URL first, then extract video_id as fallback
+  let data: Record<string, unknown>;
+  try {
+    data = await apiCall(`/v1/tiktok/video/comments?url=${encodeURIComponent(videoUrl)}`, apiKey);
+  } catch {
+    // Fallback: extract video ID from URL and try with video_id param
+    const videoId = videoUrl.split("/video/")[1]?.split("?")[0] || "";
+    if (!videoId) return [];
+    data = await apiCall(`/v1/tiktok/video/comments?video_id=${encodeURIComponent(videoId)}`, apiKey);
+  }
+
   const comments = (data.comments as Array<Record<string, unknown>>) || [];
 
   return comments.slice(0, count).map((c) => {

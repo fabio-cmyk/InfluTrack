@@ -386,7 +386,7 @@ export default function AnalysisPage() {
                 <a key={post.id} href={post.url} target="_blank" rel="noopener noreferrer" className="group relative rounded-xl overflow-hidden border shadow-sm hover:shadow-md transition-shadow">
                   {post.thumbnail ? (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={post.thumbnail} alt={post.caption.slice(0, 30)} className="w-full h-64 object-cover" />
+                    <img src={proxyImg(post.thumbnail)} alt={post.caption.slice(0, 30)} className="w-full h-64 object-cover" />
                   ) : (
                     <div className="w-full h-64 bg-muted flex items-center justify-center text-muted-foreground">Sem preview</div>
                   )}
@@ -453,7 +453,7 @@ export default function AnalysisPage() {
                           <TableCell>
                             {post.thumbnail ? (
                               // eslint-disable-next-line @next/next/no-img-element
-                              <img src={post.thumbnail} alt="" className="h-10 w-10 rounded object-cover" />
+                              <img src={proxyImg(post.thumbnail)} alt="" className="h-10 w-10 rounded object-cover" />
                             ) : (
                               <div className="h-10 w-10 rounded bg-muted" />
                             )}
