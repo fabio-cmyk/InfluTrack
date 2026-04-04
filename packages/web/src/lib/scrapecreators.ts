@@ -229,24 +229,23 @@ export async function getTikTokVideos(handle: string, apiKey: string, count = 12
     const stats = (p.stats as Record<string, number>) || (p.statistics as Record<string, number>) || {};
     const video = (p.video as Record<string, unknown>) || {};
 
-    // TikTok cover can be: string, or object with url_list array, or nested in different keys
-    const coverObj = video.cover as string | Record<string, unknown> | undefined;
-    const dynamicCover = (video.dynamicCover || video.dynamic_cover) as string | Record<string, unknown> | undefined;
-    const originCover = (video.originCover || video.origin_cover) as string | Record<string, unknown> | undefined;
-
-    function extractUrl(val: string | Record<string, unknown> | undefined): string {
+    // TikTok cover fields are objects with { uri, url_list: string[] }
+    // cover/origin_cover return .heic (not supported in most browsers)
+    // dynamic_cover returns .awebp (supported) — prefer this
+    function extractUrl(val: unknown): string {
       if (!val) return "";
       if (typeof val === "string") return val;
-      const urls = val.url_list as string[];
-      return urls?.[0] || "";
+      const obj = val as Record<string, unknown>;
+      const urls = (obj.url_list as string[]) || [];
+      // Prefer non-heic URLs (webp, jpeg, png)
+      const compatible = urls.find((u) => !u.includes(".heic"));
+      return compatible || urls[0] || "";
     }
 
-    // Also check item-level cover fields (some API versions put it at root)
-    const itemCover = (p.cover as string | Record<string, unknown> | undefined);
-    const itemOriginCover = (p.origin_cover as string | Record<string, unknown> | undefined);
-
-    const thumbnail = extractUrl(originCover) || extractUrl(dynamicCover) || extractUrl(coverObj)
-      || extractUrl(itemOriginCover) || extractUrl(itemCover) || "";
+    // Priority: dynamic_cover (awebp) > cover > origin_cover
+    const thumbnail = extractUrl(video.dynamic_cover) || extractUrl(video.dynamicCover)
+      || extractUrl(video.cover) || extractUrl(video.origin_cover)
+      || extractUrl(p.cover) || "";
     const videoId = (p.aweme_id as string) || (p.id as string) || "";
 
     return {
