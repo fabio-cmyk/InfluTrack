@@ -9,6 +9,19 @@ import {
   type ScrapedProfile, type ScrapedPost, type ScrapedComment,
 } from "@/lib/scrapecreators";
 
+export type BrandAssets = {
+  brand_name: string | null;
+  mission: string | null;
+  vision: string | null;
+  values: string[];
+  tone_of_voice: string | null;
+  target_audience: string | null;
+  customer_pain_points: string[];
+  product_benefits: string[];
+  competitive_differentiators: string[];
+  brand_keywords: string[];
+};
+
 export type AnalysisResult = {
   profile: ScrapedProfile;
   posts: ScrapedPost[];
@@ -20,11 +33,9 @@ export type AnalysisResult = {
     engagement_rate: number;
     ratio: number;
   };
-  fit_score: number;
-  fit_classification: string;
-  strengths: string[];
-  concerns: string[];
-  brandKeywords: string[];
+  fit_score: number | null;
+  fit_classification: string | null;
+  brandAssets: BrandAssets;
 };
 
 export type AnalysisEntry = {
@@ -220,31 +231,38 @@ export async function analyzeProfile(rawHandle: string, platform: string): Promi
     const metrics = calculateMetrics(posts, profile.followers, platform);
     const ratio = profile.following > 0 ? Number((profile.followers / profile.following).toFixed(1)) : 0;
 
-    // Get brand keywords for fit score
+    // Get ALL brand assets for AI analysis
     const { data: brandAsset } = await supabase
       .from("brand_assets")
-      .select("brand_keywords")
+      .select("brand_name, mission, vision, values, tone_of_voice, target_audience, customer_pain_points, product_benefits, competitive_differentiators, brand_keywords")
       .eq("tenant_id", tenantUser.tenant_id)
       .single();
-    const brandKeywords = (brandAsset?.brand_keywords as string[]) || [];
 
-    // Calculate fit score
-    const { score, strengths, concerns } = calculateFitScore(profile, metrics, posts, brandKeywords, platform);
-    const classification = score >= 70 ? "recommended" : score >= 40 ? "neutral" : "not_recommended";
+    const brandAssets: BrandAssets = {
+      brand_name: (brandAsset?.brand_name as string) || null,
+      mission: (brandAsset?.mission as string) || null,
+      vision: (brandAsset?.vision as string) || null,
+      values: (brandAsset?.values as string[]) || [],
+      tone_of_voice: (brandAsset?.tone_of_voice as string) || null,
+      target_audience: (brandAsset?.target_audience as string) || null,
+      customer_pain_points: (brandAsset?.customer_pain_points as string[]) || [],
+      product_benefits: (brandAsset?.product_benefits as string[]) || [],
+      competitive_differentiators: (brandAsset?.competitive_differentiators as string[]) || [],
+      brand_keywords: (brandAsset?.brand_keywords as string[]) || [],
+    };
 
+    // Fit score is NULL — will be set by AI analysis
     const result: AnalysisResult = {
       profile,
       posts,
       comments,
       metrics: { ...metrics, ratio },
-      fit_score: score,
-      fit_classification: classification,
-      strengths,
-      concerns,
-      brandKeywords,
+      fit_score: null,
+      fit_classification: null,
+      brandAssets,
     };
 
-    // Save to history
+    // Save to history (without fit score — AI will update it)
     await supabase.from("analysis_history").insert({
       tenant_id: tenantUser.tenant_id,
       handle,
@@ -253,12 +271,11 @@ export async function analyzeProfile(rawHandle: string, platform: string): Promi
         profile: { followers: profile.followers, following: profile.following, posts_count: profile.posts_count, biography: profile.biography, is_verified: profile.is_verified, profile_pic: profile.profile_pic, display_name: profile.display_name },
         metrics: result.metrics,
         posts_count_analyzed: posts.length,
+        comments_count: comments.length,
         top_post: posts[0] ? { likes: posts[0].like_count, comments: posts[0].comment_count, views: posts[0].play_count, caption: posts[0].caption.slice(0, 200) } : null,
       },
-      fit_score: score,
-      fit_classification: classification,
-      strengths,
-      concerns,
+      fit_score: null,
+      fit_classification: null,
     });
 
     revalidatePath("/analysis");
@@ -268,7 +285,13 @@ export async function analyzeProfile(rawHandle: string, platform: string): Promi
   }
 }
 
-export async function saveAIReport(handle: string, platform: string, aiMarkdown: string): Promise<{ success: boolean }> {
+export async function saveAIReport(
+  handle: string,
+  platform: string,
+  aiMarkdown: string,
+  fitScore: number | null = null,
+  fitClassification: string | null = null
+): Promise<{ success: boolean }> {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { success: false };
@@ -280,10 +303,16 @@ export async function saveAIReport(handle: string, platform: string, aiMarkdown:
     .single();
   if (!tenantUser) return { success: false };
 
-  // Update the most recent analysis for this handle with the AI report
+  // Update the most recent analysis with AI report + fit score from AI
+  const updateData: Record<string, unknown> = { ai_report: aiMarkdown };
+  if (fitScore !== null) {
+    updateData.fit_score = fitScore;
+    updateData.fit_classification = fitClassification;
+  }
+
   await supabase
     .from("analysis_history")
-    .update({ ai_report: aiMarkdown })
+    .update(updateData)
     .eq("tenant_id", tenantUser.tenant_id)
     .eq("handle", handle)
     .eq("platform", platform)

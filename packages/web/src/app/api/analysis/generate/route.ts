@@ -13,11 +13,12 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json();
-  const { profile, posts, comments, brandKeywords } = body as {
+  const { profile, posts, comments, metrics, brandAssets } = body as {
     profile: Record<string, unknown>;
     posts: Array<Record<string, unknown>>;
     comments: Array<Record<string, unknown>>;
-    brandKeywords: string[];
+    metrics: Record<string, unknown>;
+    brandAssets: Record<string, unknown>;
   };
 
   if (!profile) {
@@ -27,8 +28,22 @@ export async function POST(req: NextRequest) {
     });
   }
 
-  const brandContext = brandKeywords.length > 0
-    ? `A marca do cliente trabalha com: ${brandKeywords.join(", ")}.`
+  // Build rich brand context from all brand assets
+  const ba = brandAssets || {};
+  const brandParts: string[] = [];
+  if (ba.brand_name) brandParts.push(`**Marca:** ${ba.brand_name}`);
+  if (ba.mission) brandParts.push(`**Missão:** ${ba.mission}`);
+  if (ba.vision) brandParts.push(`**Visão:** ${ba.vision}`);
+  if (ba.tone_of_voice) brandParts.push(`**Tom de voz:** ${ba.tone_of_voice}`);
+  if (ba.target_audience) brandParts.push(`**Público-alvo:** ${ba.target_audience}`);
+  if (Array.isArray(ba.values) && ba.values.length > 0) brandParts.push(`**Valores:** ${ba.values.join(", ")}`);
+  if (Array.isArray(ba.product_benefits) && ba.product_benefits.length > 0) brandParts.push(`**Benefícios do produto:** ${ba.product_benefits.join(", ")}`);
+  if (Array.isArray(ba.customer_pain_points) && ba.customer_pain_points.length > 0) brandParts.push(`**Dores do cliente:** ${ba.customer_pain_points.join(", ")}`);
+  if (Array.isArray(ba.competitive_differentiators) && ba.competitive_differentiators.length > 0) brandParts.push(`**Diferenciais:** ${ba.competitive_differentiators.join(", ")}`);
+  if (Array.isArray(ba.brand_keywords) && ba.brand_keywords.length > 0) brandParts.push(`**Keywords:** ${ba.brand_keywords.join(", ")}`);
+
+  const brandContext = brandParts.length > 0
+    ? `PERFIL DA MARCA DO CLIENTE:\n${brandParts.join("\n")}\n\nUse estas informações para avaliar o FIT entre o influencer e a marca. Compare tom de voz, público-alvo, valores e posicionamento.`
     : "Não há informações específicas da marca — faça uma análise genérica de potencial.";
 
   const isTikTok = profile.platform === "tiktok";
@@ -73,6 +88,7 @@ Uma de: **"✅ Recomendo"**, **"⚠️ Com ressalvas"** ou **"❌ Não recomendo
 
 Seja direto, use dados concretos dos posts e comentários fornecidos. Não invente dados que não estão disponíveis.`;
 
+  const m = metrics || {};
   const userMessage = `Analise este perfil de influencer:
 
 **PERFIL:**
@@ -81,16 +97,21 @@ Seja direto, use dados concretos dos posts e comentários fornecidos. Não inven
 - Plataforma: ${profile.platform}
 - Seguidores: ${profile.followers}
 - Seguindo: ${profile.following}
-- Posts: ${profile.posts_count}
+- Total de posts/videos: ${profile.posts_count}
 - Bio: ${profile.biography}
 - Verificado: ${profile.is_verified ? "Sim" : "Não"}
 
-**MÉTRICAS:**
-- Engagement Rate: ${profile.engagement_rate || "N/A"}%
-- Ratio seguidores/seguindo: ${Number(profile.followers) > 0 && Number(profile.following) > 0 ? (Number(profile.followers) / Number(profile.following)).toFixed(1) : "N/A"}
+**MÉTRICAS CALCULADAS (últimos 30 dias):**
+- Posts analisados: ${posts.length}
+- Engagement Rate: ${m.engagement_rate || "N/A"}%${isTikTok ? " (sobre views)" : " (sobre seguidores)"}
+- Média de Likes por post: ${m.avg_likes || "N/A"}
+- Média de Comentários por post: ${m.avg_comments || "N/A"}
+- Média de Views por post: ${m.avg_views || "N/A"}
+- Ratio seguidores/seguindo: ${m.ratio || "N/A"}
+- Total de comentários coletados: ${comments.length}
 
-**POSTS RECENTES (${posts.length}):**
-${posts.map((p, i) => `${i + 1}. [${p.type}] Likes: ${p.like_count} | Comentários: ${p.comment_count} | Views: ${p.play_count || 0} | Caption: "${String(p.caption || "").slice(0, 280)}"`).join("\n")}
+**POSTS/VÍDEOS ANALISADOS (${posts.length}):**
+${posts.map((p, i) => `${i + 1}. [${p.type}] Likes: ${p.like_count} | Comentários: ${p.comment_count} | Views: ${p.play_count || 0} | Caption: "${String(p.caption || "").slice(0, 500)}"`).join("\n")}
 
 **COMENTÁRIOS DA AUDIÊNCIA (${comments.length}):**
 ${comments.length > 0 ? comments.map((c, i) => `${i + 1}. @${c.username}: "${c.text}" (${c.likes} likes)`).join("\n") : "Sem comentários disponíveis para análise."}`;

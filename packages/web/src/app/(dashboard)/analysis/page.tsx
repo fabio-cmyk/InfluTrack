@@ -98,7 +98,7 @@ export default function AnalysisPage() {
   const [history, setHistory] = useState<AnalysisEntry[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<"posts" | "reels" | "comments" | "strengths" | "ai">("posts");
+  const [activeTab, setActiveTab] = useState<"posts" | "reels" | "comments" | "ai">("ai");
   const [aiMarkdown, setAiMarkdown] = useState("");
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
@@ -118,15 +118,19 @@ export default function AnalysisPage() {
     setLoading(true);
     setError(null);
     setResult(null);
+    setAiMarkdown("");
     const { data, error: err } = await analyzeProfile(handle.trim(), platform);
     if (err) setError(err);
-    if (data) setResult(data);
+    if (data) {
+      setResult(data);
+      // Auto-start AI analysis (fit score comes from AI)
+      triggerAIAnalysis(data);
+    }
     setLoading(false);
     loadHistory();
   }
 
-  async function handleGenerateAI() {
-    if (!result) return;
+  async function triggerAIAnalysis(analysisResult: AnalysisResult) {
     setAiLoading(true);
     setAiError(null);
     setAiMarkdown("");
@@ -137,20 +141,21 @@ export default function AnalysisPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          profile: result.profile,
-          posts: result.posts.slice(0, 10).map(p => ({
+          profile: analysisResult.profile,
+          metrics: analysisResult.metrics,
+          posts: analysisResult.posts.map(p => ({
             type: p.type,
-            caption: p.caption.slice(0, 280),
+            caption: p.caption.slice(0, 500),
             like_count: p.like_count,
             comment_count: p.comment_count,
             play_count: p.play_count,
           })),
-          comments: (result.comments || []).slice(0, 30).map(c => ({
+          comments: (analysisResult.comments || []).map(c => ({
             username: c.username,
             text: c.text,
             likes: c.likes,
           })),
-          brandKeywords: result.brandKeywords || [],
+          brandAssets: analysisResult.brandAssets || {},
         }),
       });
 
@@ -194,9 +199,27 @@ export default function AnalysisPage() {
         }
       }
 
-      // Save AI report to history
+      // Extract AI score and update fit score
       if (fullMarkdown) {
-        saveAIReport(result.profile.handle, result.profile.platform, fullMarkdown);
+        const aiScore = extractAIScore(fullMarkdown);
+        const fitScore = aiScore?.total || null;
+        const fitClass = fitScore !== null
+          ? (fitScore >= 70 ? "recommended" : fitScore >= 40 ? "neutral" : "not_recommended")
+          : null;
+
+        // Update local state with AI-determined score
+        if (fitScore !== null) {
+          setResult((prev) => prev ? { ...prev, fit_score: fitScore, fit_classification: fitClass } : prev);
+        }
+
+        // Persist AI report + score to DB
+        saveAIReport(
+          analysisResult.profile.handle,
+          analysisResult.profile.platform,
+          fullMarkdown,
+          fitScore,
+          fitClass
+        );
       }
     } catch (err) {
       setAiError(String(err));
@@ -205,7 +228,13 @@ export default function AnalysisPage() {
     }
   }
 
-  const fit = result ? FIT_COLORS[result.fit_classification] || FIT_COLORS.neutral : null;
+  // Keep handleGenerateAI for manual re-generation
+  async function handleGenerateAI() {
+    if (!result) return;
+    triggerAIAnalysis(result);
+  }
+
+  const fit = result?.fit_classification ? FIT_COLORS[result.fit_classification] || FIT_COLORS.neutral : null;
 
   return (
     <div className="space-y-6">
@@ -364,17 +393,28 @@ export default function AnalysisPage() {
               </CardContent>
             </Card>
 
-            {/* Fit Score */}
+            {/* Fit Score — comes from AI analysis */}
             <Card className="shadow-sm">
               <CardContent className="pt-5 flex flex-col items-center justify-center">
                 <p className="text-xs font-semibold text-muted-foreground mb-3">Score de Fit</p>
-                <div className={`w-20 h-20 rounded-full border-4 ${fit?.ring} flex flex-col items-center justify-center`}>
-                  <span className={`text-2xl font-extrabold ${fit?.text}`}>{result.fit_score}</span>
-                  <span className="text-[9px] text-muted-foreground">/100</span>
-                </div>
-                <span className={`mt-2 text-xs font-semibold px-2 py-0.5 rounded-full ${fit?.bg} ${fit?.text}`}>
-                  {fit?.label}
-                </span>
+                {result.fit_score !== null && fit ? (
+                  <>
+                    <div className={`w-20 h-20 rounded-full border-4 ${fit.ring} flex flex-col items-center justify-center`}>
+                      <span className={`text-2xl font-extrabold ${fit.text}`}>{result.fit_score}</span>
+                      <span className="text-[9px] text-muted-foreground">/100</span>
+                    </div>
+                    <span className={`mt-2 text-xs font-semibold px-2 py-0.5 rounded-full ${fit.bg} ${fit.text}`}>
+                      {fit.label}
+                    </span>
+                  </>
+                ) : (
+                  <div className="flex flex-col items-center gap-2">
+                    <div className="w-20 h-20 rounded-full border-4 border-muted flex flex-col items-center justify-center">
+                      <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                    </div>
+                    <span className="text-[10px] text-muted-foreground">Aguardando IA...</span>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>
@@ -417,7 +457,7 @@ export default function AnalysisPage() {
           <Card className="shadow-sm">
             <CardContent className="pt-0">
               <div className="flex border-b -mx-6 px-6">
-                {([["posts", "Posts Recentes"], ["reels", "Reels & Videos"], ["comments", `Comentarios (${result.comments?.length || 0})`], ["strengths", "Analise"], ["ai", "Analise IA"]] as const).map(([key, label]) => (
+                {([["posts", "Posts Recentes"], ["reels", "Reels & Videos"], ["comments", `Comentarios (${result.comments?.length || 0})`], ["ai", "Analise IA"]] as const).map(([key, label]) => (
                   <button
                     key={key}
                     onClick={() => setActiveTab(key)}
@@ -509,41 +549,6 @@ export default function AnalysisPage() {
                             </div>
                           </div>
                         ))}
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {activeTab === "strengths" && (
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-2">
-                      <span className={`text-2xl font-extrabold ${fit?.text}`}>{result.fit_score}/100</span>
-                      <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${fit?.bg} ${fit?.text}`}>{fit?.label}</span>
-                    </div>
-
-                    {result.strengths.length > 0 && (
-                      <div>
-                        <p className="text-sm font-bold mb-2">Pontos Fortes</p>
-                        <ul className="space-y-1">
-                          {result.strengths.map((s, i) => (
-                            <li key={i} className="text-sm text-muted-foreground flex items-start gap-2">
-                              <span className="text-[#22C55E] mt-0.5">+</span>{s}
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-
-                    {result.concerns.length > 0 && (
-                      <div>
-                        <p className="text-sm font-bold mb-2">Pontos de Atencao</p>
-                        <ul className="space-y-1">
-                          {result.concerns.map((c, i) => (
-                            <li key={i} className="text-sm text-muted-foreground flex items-start gap-2">
-                              <span className="text-[#EF4444] mt-0.5">!</span>{c}
-                            </li>
-                          ))}
-                        </ul>
                       </div>
                     )}
                   </div>
