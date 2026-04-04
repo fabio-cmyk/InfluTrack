@@ -5,11 +5,15 @@ export async function GET(req: NextRequest) {
   if (!url) return NextResponse.json({ error: "Missing url param" }, { status: 400 });
 
   try {
+    // Dynamic referer based on image source
+    const isTikTok = url.includes("tiktok") || url.includes("tiktokcdn");
+    const referer = isTikTok ? "https://www.tiktok.com/" : "https://www.instagram.com/";
+
     const res = await fetch(url, {
       headers: {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
         "Accept": "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
-        "Referer": "https://www.instagram.com/",
+        "Referer": referer,
       },
       redirect: "follow",
     });
