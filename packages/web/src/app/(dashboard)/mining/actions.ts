@@ -2,7 +2,15 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { mineInstagramByKeyword, mineTikTokByKeyword, type MinedInfluencer } from "@/lib/scrapecreators";
+import {
+  mineInstagramByKeyword,
+  mineTikTokByKeyword,
+  getTikTokPopularCreators,
+  getTikTokPopularHashtags,
+  getInstagramEnrichedProfile,
+  type MinedInfluencer,
+} from "@/lib/scrapecreators";
+import { getNicheLabel } from "@/lib/niches";
 
 export type MiningSearch = {
   id: string;
@@ -33,6 +41,10 @@ export type MiningResult = {
     content_found?: number;
     sample_caption?: string;
     is_verified?: boolean;
+    ig_category?: string;
+    ig_city?: string;
+    ig_bio?: string;
+    discovered_via?: string;
   } | null;
 };
 
@@ -88,7 +100,15 @@ function looksPortugueseName(name: string): boolean {
   return brNameParts.some((w) => lower.includes(w));
 }
 
-export async function createSearch(keywords: string[], platforms: string[], region: string = "brasil"): Promise<{ id?: string; error?: string }> {
+// Brazilian hashtags that strongly signal influencer content
+const BR_SIGNAL_HASHTAGS = ["publipost", "publi", "recebidos", "influenciadordigital", "parceria", "blogueira"];
+
+export async function createSearch(
+  keywords: string[],
+  platforms: string[],
+  region: string = "brasil",
+  niche: string = ""
+): Promise<{ id?: string; error?: string }> {
   const supabase = await createClient();
 
   const { data: { user } } = await supabase.auth.getUser();
@@ -104,7 +124,12 @@ export async function createSearch(keywords: string[], platforms: string[], regi
 
   const { data, error } = await supabase
     .from("mining_searches")
-    .insert({ tenant_id: tenantUser.tenant_id, keywords, platforms })
+    .insert({
+      tenant_id: tenantUser.tenant_id,
+      keywords,
+      platforms,
+      filters: { region, niche: niche || null },
+    })
     .select("id")
     .single();
 
@@ -113,30 +138,105 @@ export async function createSearch(keywords: string[], platforms: string[], regi
   const searchId = data?.id;
   if (!searchId) return { error: "Falha ao criar busca" };
 
-  // ScrapeCreators API key (global, from env)
   const apiKey = process.env.SCRAPECREATORS_API_KEY;
+  const isBrasil = region === "brasil";
+  const nicheLabel = niche ? getNicheLabel(niche) : null;
 
   if (apiKey) {
     try {
-      // Append region context to bias API results toward local creators
       const baseQuery = keywords.join(" ");
-      const query = region === "global" ? baseQuery : `${baseQuery} ${region}`;
       const allMinedInfluencers: MinedInfluencer[] = [];
 
-      // Instagram: search reels by keyword → extract creators with metrics
+      // ── INSTAGRAM ──────────────────────────────────────────
       if (platforms.includes("instagram")) {
-        const igResults = await mineInstagramByKeyword(query, apiKey);
+        // Combine keywords with BR signal hashtags when region is Brasil
+        const igQuery = isBrasil
+          ? `${BR_SIGNAL_HASHTAGS[0]} ${baseQuery}`
+          : baseQuery;
+        const igResults = await mineInstagramByKeyword(igQuery, apiKey);
         allMinedInfluencers.push(...igResults);
       }
 
-      // TikTok: search videos by keyword → extract creators with metrics
+      // ── TIKTOK ─────────────────────────────────────────────
       if (platforms.includes("tiktok")) {
-        const ttResults = await mineTikTokByKeyword(query, apiKey);
-        allMinedInfluencers.push(...ttResults);
+        // Strategy 1: Popular Creators BR (native country filter — most assertive)
+        if (isBrasil) {
+          try {
+            const popularCreators = await getTikTokPopularCreators(apiKey, {
+              creatorCountry: "BR",
+              audienceCountry: "BR",
+              sortBy: "follower_count",
+              page: 1,
+            });
+            // Convert PopularCreator → MinedInfluencer format
+            for (const c of popularCreators) {
+              allMinedInfluencers.push({
+                handle: c.handle,
+                display_name: c.display_name,
+                followers: c.followers,
+                following: c.following,
+                posts_count: c.posts_count,
+                profile_pic: c.profile_pic,
+                profile_url: c.profile_url,
+                is_verified: c.is_verified,
+                platform: "tiktok",
+                total_views: c.avg_views,
+                total_likes: 0,
+                total_comments: 0,
+                total_shares: 0,
+                content_found: 0,
+                avg_engagement_rate: c.engagement_rate,
+                sample_caption: "",
+              });
+            }
+          } catch {
+            // Popular creators endpoint failed, continue with keyword search
+          }
+        }
+
+        // Strategy 2: Niche hashtags → keyword search (when niche selected)
+        if (niche && isBrasil) {
+          try {
+            const trendingHashtags = await getTikTokPopularHashtags(apiKey, {
+              countryCode: "BR",
+              industry: niche,
+              period: 7,
+              page: 1,
+            });
+            // Use top 3 trending hashtags as additional search terms
+            const topHashtags = trendingHashtags.slice(0, 3).map((h) => h.hashtag_name);
+            if (topHashtags.length > 0) {
+              const nicheQuery = `${topHashtags[0]} ${baseQuery}`;
+              const nicheResults = await mineTikTokByKeyword(nicheQuery, apiKey);
+              // Deduplicate by handle
+              const existingHandles = new Set(allMinedInfluencers.map((r) => r.handle));
+              for (const r of nicheResults) {
+                if (!existingHandles.has(r.handle)) {
+                  allMinedInfluencers.push(r);
+                  existingHandles.add(r.handle);
+                }
+              }
+            }
+          } catch {
+            // Hashtag discovery failed, continue with keyword search
+          }
+        }
+
+        // Strategy 3: Standard keyword search (always runs as fallback/complement)
+        const ttQuery = isBrasil ? `${baseQuery} brasil` : baseQuery;
+        const ttResults = await mineTikTokByKeyword(ttQuery, apiKey);
+        // Deduplicate
+        const existingHandles = new Set(allMinedInfluencers.map((r) => r.handle));
+        for (const r of ttResults) {
+          if (!existingHandles.has(r.handle)) {
+            allMinedInfluencers.push(r);
+            existingHandles.add(r.handle);
+          }
+        }
       }
 
-      // Filter by region heuristics (Portuguese content/names for Brasil)
-      const filtered = region === "global"
+      // ── FILTER BY REGION HEURISTICS ────────────────────────
+      const filtered = !isBrasil
         ? allMinedInfluencers
         : allMinedInfluencers.filter((r) => {
             const captionMatch = looksPortuguese(r.sample_caption);
@@ -153,30 +253,66 @@ export async function createSearch(keywords: string[], platforms: string[], regi
             return bScore - aScore;
           });
 
-      // Insert all results with full metrics
+      // ── ENRICH INSTAGRAM PROFILES (FASE 2) ─────────────────
+      // For top IG results, fetch full profile for category, city, bio
+      const enrichmentMap = new Map<string, { category: string | null; city: string | null; bio: string }>();
+      if (isBrasil && apiKey) {
+        const igResults = finalResults.filter((r) => r.platform === "instagram").slice(0, 15);
+        const enrichPromises = igResults.map(async (r) => {
+          try {
+            const enriched = await getInstagramEnrichedProfile(r.handle, apiKey);
+            enrichmentMap.set(r.handle, {
+              category: enriched.category_name,
+              city: enriched.business_city,
+              bio: enriched.biography,
+            });
+          } catch {
+            // Enrichment failed for this profile, skip
+          }
+        });
+        await Promise.all(enrichPromises);
+      }
+
+      // ── INSERT RESULTS ─────────────────────────────────────
       if (finalResults.length > 0) {
-        const rows = finalResults.map((r) => ({
-          search_id: searchId,
-          tenant_id: tenantUser.tenant_id,
-          platform: r.platform,
-          handle: r.handle,
-          display_name: r.display_name,
-          followers: r.followers,
-          engagement_rate: r.avg_engagement_rate,
-          profile_url: r.profile_url,
-          avatar_url: r.profile_pic,
-          raw_data: {
-            following: r.following,
-            posts_count: r.posts_count,
-            total_views: r.total_views,
-            total_likes: r.total_likes,
-            total_comments: r.total_comments,
-            total_shares: r.total_shares,
-            content_found: r.content_found,
-            sample_caption: r.sample_caption,
-            is_verified: r.is_verified,
-          },
-        }));
+        const rows = finalResults.map((r) => {
+          const enrichment = enrichmentMap.get(r.handle);
+          // Determine niche: from enrichment category, or from selected niche, or null
+          let estimatedNiche = nicheLabel || null;
+          if (enrichment?.category && !estimatedNiche) {
+            estimatedNiche = enrichment.category;
+          }
+
+          return {
+            search_id: searchId,
+            tenant_id: tenantUser.tenant_id,
+            platform: r.platform,
+            handle: r.handle,
+            display_name: r.display_name,
+            followers: r.followers,
+            engagement_rate: r.avg_engagement_rate,
+            niche_estimate: estimatedNiche,
+            profile_url: r.profile_url,
+            avatar_url: r.profile_pic,
+            raw_data: {
+              following: r.following,
+              posts_count: r.posts_count,
+              total_views: r.total_views,
+              total_likes: r.total_likes,
+              total_comments: r.total_comments,
+              total_shares: r.total_shares,
+              content_found: r.content_found,
+              sample_caption: r.sample_caption,
+              is_verified: r.is_verified,
+              // Enrichment data
+              ...(enrichment && {
+                ig_category: enrichment.category,
+                ig_city: enrichment.city,
+                ig_bio: enrichment.bio?.slice(0, 300),
+              }),
+            },
+          };
+        });
         await supabase.from("mining_results").insert(rows);
       }
 
@@ -242,4 +378,88 @@ export async function saveResultAsInfluencer(resultId: string): Promise<{ error?
 
   revalidatePath("/mining");
   return {};
+}
+
+// ── FASE 3: Find similar Instagram profiles via edge_related_profiles ──
+
+export async function findSimilarProfiles(
+  searchId: string,
+  handle: string
+): Promise<{ added: number; error?: string }> {
+  const supabase = await createClient();
+
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { added: 0, error: "Nao autenticado" };
+
+  const { data: tenantUser } = await supabase
+    .from("tenant_users")
+    .select("tenant_id")
+    .eq("user_id", user.id)
+    .single();
+
+  if (!tenantUser) return { added: 0, error: "Tenant nao encontrado" };
+
+  const apiKey = process.env.SCRAPECREATORS_API_KEY;
+  if (!apiKey) return { added: 0, error: "API key nao configurada" };
+
+  try {
+    const enriched = await getInstagramEnrichedProfile(handle, apiKey);
+
+    if (enriched.related_profiles.length === 0) {
+      return { added: 0, error: "Nenhum perfil similar encontrado" };
+    }
+
+    // Fetch full profile for each related profile
+    const newResults: Array<Record<string, unknown>> = [];
+
+    for (const related of enriched.related_profiles) {
+      try {
+        const profile = await getInstagramEnrichedProfile(related.handle, apiKey);
+
+        newResults.push({
+          search_id: searchId,
+          tenant_id: tenantUser.tenant_id,
+          platform: "instagram",
+          handle: profile.handle,
+          display_name: profile.display_name,
+          followers: profile.followers,
+          engagement_rate: null,
+          niche_estimate: profile.category_name || enriched.category_name || null,
+          profile_url: `https://instagram.com/${profile.handle}`,
+          avatar_url: profile.profile_pic,
+          raw_data: {
+            following: profile.following,
+            posts_count: profile.posts_count,
+            is_verified: profile.is_verified,
+            ig_category: profile.category_name,
+            ig_city: profile.business_city,
+            ig_bio: profile.biography?.slice(0, 300),
+            discovered_via: handle,
+          },
+        });
+      } catch {
+        // Skip profiles that fail to enrich
+      }
+    }
+
+    if (newResults.length > 0) {
+      await supabase.from("mining_results").insert(newResults);
+
+      // Update results count
+      const { count } = await supabase
+        .from("mining_results")
+        .select("id", { count: "exact", head: true })
+        .eq("search_id", searchId);
+
+      await supabase
+        .from("mining_searches")
+        .update({ results_count: count || 0 })
+        .eq("id", searchId);
+    }
+
+    revalidatePath("/mining");
+    return { added: newResults.length };
+  } catch {
+    return { added: 0, error: "Falha ao buscar perfis similares" };
+  }
 }

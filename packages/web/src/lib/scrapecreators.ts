@@ -73,6 +73,64 @@ export async function getInstagramProfile(handle: string, apiKey: string): Promi
   };
 }
 
+// Enriched Instagram profile with category, location, related profiles
+export type EnrichedInstagramProfile = {
+  handle: string;
+  display_name: string;
+  followers: number;
+  following: number;
+  posts_count: number;
+  biography: string;
+  profile_pic: string;
+  is_verified: boolean;
+  category_name: string | null;
+  business_city: string | null;
+  is_business: boolean;
+  related_profiles: { handle: string; display_name: string; is_verified: boolean; profile_pic: string }[];
+};
+
+export async function getInstagramEnrichedProfile(handle: string, apiKey: string): Promise<EnrichedInstagramProfile> {
+  const cleanHandle = handle.replace("@", "").replace("https://instagram.com/", "").replace("https://www.instagram.com/", "").trim();
+  const data = await apiCall(`/v1/instagram/profile?handle=${encodeURIComponent(cleanHandle)}`, apiKey);
+  const user = (data.data as Record<string, unknown>)?.user as Record<string, unknown> || {};
+
+  const followers = ((user.edge_followed_by as Record<string, number>)?.count) || 0;
+  const following = ((user.edge_follow as Record<string, number>)?.count) || 0;
+  const posts = ((user.edge_owner_to_timeline_media as Record<string, number>)?.count) || 0;
+
+  // Business address
+  const bizAddr = user.business_address_json as Record<string, unknown> | null;
+  const businessCity = bizAddr ? (bizAddr.city_name as string) || null : null;
+
+  // Related profiles
+  const relatedEdges = (user.edge_related_profiles as Record<string, unknown>) || {};
+  const relatedNodes = (relatedEdges.edges as Array<Record<string, unknown>>) || [];
+  const relatedProfiles = relatedNodes.map((edge) => {
+    const node = (edge.node as Record<string, unknown>) || {};
+    return {
+      handle: (node.username as string) || "",
+      display_name: (node.full_name as string) || "",
+      is_verified: (node.is_verified as boolean) || false,
+      profile_pic: (node.profile_pic_url as string) || "",
+    };
+  }).filter((p) => p.handle);
+
+  return {
+    handle: cleanHandle,
+    display_name: (user.full_name as string) || cleanHandle,
+    followers,
+    following,
+    posts_count: posts,
+    biography: (user.biography as string) || "",
+    profile_pic: (user.profile_pic_url as string) || "",
+    is_verified: (user.is_verified as boolean) || false,
+    category_name: (user.category_name as string) || (user.overall_category_name as string) || null,
+    business_city: businessCity,
+    is_business: (user.is_business_account as boolean) || (user.is_professional_account as boolean) || false,
+    related_profiles: relatedProfiles,
+  };
+}
+
 export async function getTikTokProfile(handle: string, apiKey: string): Promise<ScrapedProfile> {
   const cleanHandle = handle.replace("@", "").replace("https://tiktok.com/@", "").replace("https://www.tiktok.com/@", "").trim();
   const data = await apiCall(`/v1/tiktok/profile?username=${encodeURIComponent(cleanHandle)}`, apiKey);
@@ -203,6 +261,88 @@ export async function getTikTokComments(videoId: string, apiKey: string, count =
       timestamp: (c.create_time as number) || 0,
     };
   });
+}
+
+// ============================================================
+// TIKTOK DISCOVERY — Popular creators, hashtags, videos (with country filter)
+// ============================================================
+
+export type PopularCreator = {
+  handle: string;
+  display_name: string;
+  followers: number;
+  following: number;
+  posts_count: number;
+  profile_pic: string;
+  profile_url: string;
+  is_verified: boolean;
+  avg_views: number;
+  engagement_rate: number;
+};
+
+export async function getTikTokPopularCreators(
+  apiKey: string,
+  opts: { creatorCountry?: string; audienceCountry?: string; sortBy?: string; followerCount?: string; page?: number } = {}
+): Promise<PopularCreator[]> {
+  const params = new URLSearchParams();
+  if (opts.creatorCountry) params.set("creatorCountry", opts.creatorCountry);
+  if (opts.audienceCountry) params.set("audienceCountry", opts.audienceCountry);
+  if (opts.sortBy) params.set("sortBy", opts.sortBy);
+  if (opts.followerCount) params.set("followerCount", opts.followerCount);
+  if (opts.page) params.set("page", String(opts.page));
+
+  const data = await apiCall(`/v1/tiktok/creators/popular?${params.toString()}`, apiKey);
+  const creators = (data.creators as Array<Record<string, unknown>>) || (data.data as Array<Record<string, unknown>>) || [];
+
+  return creators.map((c) => {
+    const stats = (c.stats as Record<string, number>) || {};
+    const avatar = (c.avatar_medium as Record<string, unknown>) || {};
+    const avatarUrls = (avatar.url_list as string[]) || [];
+    const uniqueId = (c.unique_id as string) || (c.uniqueId as string) || "";
+
+    return {
+      handle: uniqueId,
+      display_name: (c.nickname as string) || uniqueId,
+      followers: (c.follower_count as number) || stats.followerCount || 0,
+      following: (c.following_count as number) || stats.followingCount || 0,
+      posts_count: (c.aweme_count as number) || stats.videoCount || 0,
+      profile_pic: avatarUrls[0] || (c.avatar_url as string) || "",
+      profile_url: `https://tiktok.com/@${uniqueId}`,
+      is_verified: (c.verified as boolean) || false,
+      avg_views: (c.avg_views as number) || 0,
+      engagement_rate: (c.engagement_rate as number) || 0,
+    };
+  });
+}
+
+export type PopularHashtag = {
+  hashtag_id: string;
+  hashtag_name: string;
+  video_count: number;
+  view_count: number;
+  is_trending: boolean;
+};
+
+export async function getTikTokPopularHashtags(
+  apiKey: string,
+  opts: { countryCode?: string; industry?: string; period?: number; page?: number } = {}
+): Promise<PopularHashtag[]> {
+  const params = new URLSearchParams();
+  if (opts.countryCode) params.set("countryCode", opts.countryCode);
+  if (opts.industry) params.set("industry", opts.industry);
+  if (opts.period) params.set("period", String(opts.period));
+  if (opts.page) params.set("page", String(opts.page));
+
+  const data = await apiCall(`/v1/tiktok/hashtags/popular?${params.toString()}`, apiKey);
+  const hashtags = (data.hashtags as Array<Record<string, unknown>>) || (data.data as Array<Record<string, unknown>>) || [];
+
+  return hashtags.map((h) => ({
+    hashtag_id: (h.hashtag_id as string) || (h.id as string) || "",
+    hashtag_name: (h.hashtag_name as string) || (h.name as string) || "",
+    video_count: (h.video_count as number) || (h.publish_cnt as number) || 0,
+    view_count: (h.view_count as number) || (h.video_views as number) || 0,
+    is_trending: (h.is_new_on_board as boolean) || (h.trend as number) === 1 || false,
+  }));
 }
 
 // ============================================================

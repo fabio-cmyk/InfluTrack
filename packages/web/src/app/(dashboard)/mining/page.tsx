@@ -11,10 +11,11 @@ import { Checkbox } from "@/components/ui/checkbox";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import { Search, UserPlus, History, ExternalLink, Eye, Heart, MessageCircle, Share2, CheckCircle, Globe } from "lucide-react";
+import { Search, UserPlus, History, ExternalLink, Eye, Heart, MessageCircle, Share2, CheckCircle, Globe, Tag, Users, MapPin } from "lucide-react";
 import { EmptyState } from "@/components/shared/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
-import { getSearchHistory, getSearchResults, createSearch, saveResultAsInfluencer, type MiningSearch, type MiningResult } from "./actions";
+import { getSearchHistory, getSearchResults, createSearch, saveResultAsInfluencer, findSimilarProfiles, type MiningSearch, type MiningResult } from "./actions";
+import { NICHE_OPTIONS } from "@/lib/niches";
 
 function proxyImg(url: string): string {
   return `/api/proxy-image?url=${encodeURIComponent(url)}`;
@@ -31,10 +32,12 @@ export default function MiningPage() {
   const [keywords, setKeywords] = useState("");
   const [platforms, setPlatforms] = useState<Set<string>>(new Set(["instagram", "tiktok"]));
   const [region, setRegion] = useState("brasil");
+  const [niche, setNiche] = useState("");
   const [searches, setSearches] = useState<MiningSearch[]>([]);
   const [results, setResults] = useState<MiningResult[]>([]);
   const [activeSearch, setActiveSearch] = useState<string | null>(null);
   const [searching, setSearching] = useState(false);
+  const [findingSimilar, setFindingSimilar] = useState<string | null>(null);
 
   const loadHistory = useCallback(async () => {
     const { data } = await getSearchHistory();
@@ -58,7 +61,7 @@ export default function MiningPage() {
     setSearching(true);
     setResults([]);
     const kw = keywords.split(",").map((k) => k.trim()).filter(Boolean);
-    const result = await createSearch(kw, Array.from(platforms), region);
+    const result = await createSearch(kw, Array.from(platforms), region, niche);
     if (result.id) {
       setActiveSearch(result.id);
       const { data } = await getSearchResults(result.id);
@@ -77,6 +80,17 @@ export default function MiningPage() {
   async function handleSave(resultId: string) {
     await saveResultAsInfluencer(resultId);
     setResults(results.map(r => r.id === resultId ? { ...r, saved_as_influencer_id: "saved" } : r));
+  }
+
+  async function handleFindSimilar(handle: string) {
+    if (!activeSearch) return;
+    setFindingSimilar(handle);
+    const result = await findSimilarProfiles(activeSearch, handle);
+    if (result.added > 0) {
+      const { data } = await getSearchResults(activeSearch);
+      setResults(data);
+    }
+    setFindingSimilar(null);
   }
 
   return (
@@ -123,6 +137,24 @@ export default function MiningPage() {
                   <option value="global">Global</option>
                 </select>
               </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <Tag className="h-4 w-4 text-muted-foreground" />
+              <select
+                value={niche}
+                onChange={(e) => setNiche(e.target.value)}
+                className="text-sm border rounded-md px-2 py-1.5 bg-background"
+              >
+                <option value="">Todos os nichos</option>
+                {NICHE_OPTIONS.map((n) => (
+                  <option key={n.slug} value={n.slug}>{n.label}</option>
+                ))}
+              </select>
+              <span className="text-xs text-muted-foreground">
+                {niche
+                  ? "Busca hashtags trending do nicho no Brasil + criadores populares."
+                  : "Busca por keywords em todo conteudo."}
+              </span>
             </div>
             <p className="text-xs text-muted-foreground">
               {region === "brasil"
@@ -194,7 +226,12 @@ export default function MiningPage() {
                             <p className="font-bold text-sm truncate">{r.display_name || r.handle}</p>
                           </div>
                           <p className="text-xs text-muted-foreground truncate">@{r.handle}</p>
-                          <Badge variant="outline" className="text-[10px] mt-1 capitalize">{r.platform}</Badge>
+                          <div className="flex items-center gap-1 mt-1">
+                            <Badge variant="outline" className="text-[10px] capitalize">{r.platform}</Badge>
+                            {r.niche_estimate && (
+                              <Badge variant="secondary" className="text-[10px]">{r.niche_estimate}</Badge>
+                            )}
+                          </div>
                         </div>
                         <a
                           href={r.profile_url || "#"}
@@ -229,6 +266,14 @@ export default function MiningPage() {
                         </div>
                       )}
 
+                      {/* Enrichment: City + Category */}
+                      {(rd.ig_city || rd.ig_category) && (
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          {rd.ig_city && <span className="flex items-center gap-1"><MapPin className="h-3 w-3" />{rd.ig_city}</span>}
+                          {rd.ig_category && <span className="px-1.5 py-0.5 bg-accent rounded text-[10px]">{rd.ig_category}</span>}
+                        </div>
+                      )}
+
                       {/* Caption Preview */}
                       {rd.sample_caption && (
                         <p className="text-xs text-muted-foreground line-clamp-2 italic">
@@ -236,8 +281,8 @@ export default function MiningPage() {
                         </p>
                       )}
 
-                      {/* Action */}
-                      <div className="pt-1">
+                      {/* Actions */}
+                      <div className="pt-1 space-y-1.5">
                         {r.saved_as_influencer_id ? (
                           <Button size="sm" variant="secondary" className="w-full" disabled>
                             <CheckCircle className="mr-2 h-3.5 w-3.5" />
@@ -247,6 +292,18 @@ export default function MiningPage() {
                           <Button size="sm" variant="outline" className="w-full" onClick={() => handleSave(r.id)}>
                             <UserPlus className="mr-2 h-3.5 w-3.5" />
                             Salvar como Influencer
+                          </Button>
+                        )}
+                        {r.platform === "instagram" && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="w-full text-xs"
+                            disabled={findingSimilar === r.handle}
+                            onClick={() => handleFindSimilar(r.handle)}
+                          >
+                            <Users className="mr-2 h-3.5 w-3.5" />
+                            {findingSimilar === r.handle ? "Buscando..." : "Encontrar Similares"}
                           </Button>
                         )}
                       </div>
