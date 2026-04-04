@@ -16,6 +16,10 @@ import { EmptyState } from "@/components/shared/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getSearchHistory, getSearchResults, createSearch, saveResultAsInfluencer, type MiningSearch, type MiningResult } from "./actions";
 
+function proxyImg(url: string): string {
+  return `/api/proxy-image?url=${encodeURIComponent(url)}`;
+}
+
 function fmtNum(n: number | null | undefined): string {
   if (!n) return "0";
   if (n >= 1000000) return `${(n / 1000000).toFixed(1)}M`;
@@ -175,7 +179,7 @@ export default function MiningPage() {
                         <div className="relative shrink-0">
                           {r.avatar_url ? (
                             // eslint-disable-next-line @next/next/no-img-element
-                            <img src={r.avatar_url} alt={r.display_name || r.handle} className="h-12 w-12 rounded-full object-cover border-2 border-border" />
+                            <img src={proxyImg(r.avatar_url)} alt={r.display_name || r.handle} className="h-12 w-12 rounded-full object-cover border-2 border-border" />
                           ) : (
                             <div className="h-12 w-12 rounded-full bg-gradient-to-br from-primary to-[oklch(0.6_0.18_350)] flex items-center justify-center text-white text-sm font-bold">
                               {(r.display_name || r.handle || "?")[0].toUpperCase()}
