@@ -215,14 +215,24 @@ export async function getTikTokVideos(handle: string, apiKey: string, count = 12
   const data = await apiCall(`/v3/tiktok/profile/videos?handle=${encodeURIComponent(handle)}`, apiKey);
   const items = (data.aweme_list as Array<Record<string, unknown>>) || (data.videos as Array<Record<string, unknown>>) || (data.itemList as Array<Record<string, unknown>>) || [];
 
+  // Log first item structure for debugging
+  if (items[0]) {
+    const firstItem = items[0] as Record<string, unknown>;
+    const firstVideo = (firstItem.video as Record<string, unknown>) || {};
+    console.log("[TikTok Videos] First item keys:", Object.keys(firstItem));
+    console.log("[TikTok Videos] video obj keys:", Object.keys(firstVideo));
+    console.log("[TikTok Videos] video.cover type:", typeof firstVideo.cover, "| video.cover:", JSON.stringify(firstVideo.cover)?.slice(0, 200));
+    console.log("[TikTok Videos] item.cover type:", typeof firstItem.cover, "| item.cover:", JSON.stringify(firstItem.cover)?.slice(0, 200));
+  }
+
   return items.map((p) => {
     const stats = (p.stats as Record<string, number>) || (p.statistics as Record<string, number>) || {};
     const video = (p.video as Record<string, unknown>) || {};
 
-    // TikTok cover can be: string, or object with url_list array
+    // TikTok cover can be: string, or object with url_list array, or nested in different keys
     const coverObj = video.cover as string | Record<string, unknown> | undefined;
-    const dynamicCover = video.dynamicCover as string | Record<string, unknown> | undefined;
-    const originCover = video.originCover as string | Record<string, unknown> | undefined;
+    const dynamicCover = (video.dynamicCover || video.dynamic_cover) as string | Record<string, unknown> | undefined;
+    const originCover = (video.originCover || video.origin_cover) as string | Record<string, unknown> | undefined;
 
     function extractUrl(val: string | Record<string, unknown> | undefined): string {
       if (!val) return "";
@@ -231,7 +241,12 @@ export async function getTikTokVideos(handle: string, apiKey: string, count = 12
       return urls?.[0] || "";
     }
 
-    const thumbnail = extractUrl(originCover) || extractUrl(dynamicCover) || extractUrl(coverObj) || (p.cover as string) || "";
+    // Also check item-level cover fields (some API versions put it at root)
+    const itemCover = (p.cover as string | Record<string, unknown> | undefined);
+    const itemOriginCover = (p.origin_cover as string | Record<string, unknown> | undefined);
+
+    const thumbnail = extractUrl(originCover) || extractUrl(dynamicCover) || extractUrl(coverObj)
+      || extractUrl(itemOriginCover) || extractUrl(itemCover) || "";
     const videoId = (p.aweme_id as string) || (p.id as string) || "";
 
     return {
