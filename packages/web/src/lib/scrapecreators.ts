@@ -134,19 +134,32 @@ export async function getInstagramEnrichedProfile(handle: string, apiKey: string
 export async function getTikTokProfile(handle: string, apiKey: string): Promise<ScrapedProfile> {
   const cleanHandle = handle.replace("@", "").replace("https://tiktok.com/@", "").replace("https://www.tiktok.com/@", "").trim();
   const data = await apiCall(`/v1/tiktok/profile?handle=${encodeURIComponent(cleanHandle)}`, apiKey);
-  const userInfo = (data.data as Record<string, unknown>) || {};
-  const user = (userInfo.user as Record<string, unknown>) || {};
-  const stats = (userInfo.stats as Record<string, number>) || {};
+
+  // API may return data in different structures depending on version
+  // Try: data.data.user/stats, data.user/stats, or flat data
+  const rawData = (data.data as Record<string, unknown>) || data;
+  const user = (rawData.user as Record<string, unknown>)
+    || (rawData.userInfo as Record<string, unknown>)
+    || rawData;
+  const stats = (rawData.stats as Record<string, number>)
+    || (rawData.userInfo as Record<string, unknown>)?.stats as Record<string, number>
+    || {};
+
+  console.log("[TikTok Profile] Response keys:", Object.keys(data), "| data keys:", Object.keys(rawData));
+
+  const followers = stats.followerCount || stats.follower_count || (user.follower_count as number) || (rawData.follower_count as number) || 0;
+  const following = stats.followingCount || stats.following_count || (user.following_count as number) || (rawData.following_count as number) || 0;
+  const videoCount = stats.videoCount || stats.video_count || (user.aweme_count as number) || (rawData.aweme_count as number) || 0;
 
   return {
     handle: cleanHandle,
-    display_name: (user.nickname as string) || cleanHandle,
-    followers: stats.followerCount || 0,
-    following: stats.followingCount || 0,
-    posts_count: stats.videoCount || 0,
-    biography: (user.signature as string) || "",
-    profile_pic: (user.avatarLarger as string) || (user.avatarMedium as string) || "",
-    is_verified: (user.verified as boolean) || false,
+    display_name: (user.nickname as string) || (rawData.nickname as string) || cleanHandle,
+    followers,
+    following,
+    posts_count: videoCount,
+    biography: (user.signature as string) || (rawData.signature as string) || "",
+    profile_pic: (user.avatarLarger as string) || (user.avatarMedium as string) || (rawData.avatar_url as string) || "",
+    is_verified: (user.verified as boolean) || (rawData.verified as boolean) || false,
     engagement_rate: null,
     platform: "tiktok",
   };
