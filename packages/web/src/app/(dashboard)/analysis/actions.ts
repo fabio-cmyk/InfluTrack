@@ -181,24 +181,37 @@ export async function analyzeProfile(rawHandle: string, platform: string): Promi
       : await getInstagramProfile(handle, apiKey);
 
     // Fetch posts/videos
+    // TikTok: all videos from last 30 days (paginated)
+    // Instagram: last 12 posts
     const posts = platform === "tiktok"
-      ? await getTikTokVideos(handle, apiKey, 12)
+      ? await getTikTokVideos(handle, apiKey, 30)
       : await getInstagramPosts(handle, apiKey, 12);
 
-    // Fetch comments from top 5 most engaged posts (up to 20 per post = ~100 total)
-    const sortedByEngagement = [...posts].sort((a, b) =>
-      (b.like_count + b.comment_count) - (a.like_count + a.comment_count)
-    );
+    // Fetch comments from ALL posts (100 per video max for TikTok, 20 for IG)
     let comments: ScrapedComment[] = [];
     try {
-      const topPosts = sortedByEngagement.slice(0, 5);
-      const commentPromises = topPosts.map((p) =>
-        platform === "tiktok"
-          ? getTikTokComments(p.url, apiKey, 20)
-          : getInstagramComments(p.code, apiKey, 20)
-      );
-      const commentResults = await Promise.all(commentPromises);
-      comments = commentResults.flat();
+      if (platform === "tiktok") {
+        // TikTok: paginate ALL comments from each post (max 100 per video)
+        for (const p of posts) {
+          try {
+            const postComments = await getTikTokComments(p.url, apiKey, 100);
+            comments.push(...postComments);
+          } catch {
+            // Skip individual post comment failures
+          }
+        }
+      } else {
+        // Instagram: top 5 most engaged posts, 20 comments each
+        const sortedByEngagement = [...posts].sort((a, b) =>
+          (b.like_count + b.comment_count) - (a.like_count + a.comment_count)
+        );
+        const topPosts = sortedByEngagement.slice(0, 5);
+        const commentPromises = topPosts.map((p) =>
+          getInstagramComments(p.code, apiKey, 20).catch(() => [] as ScrapedComment[])
+        );
+        const commentResults = await Promise.all(commentPromises);
+        comments = commentResults.flat();
+      }
     } catch {
       // Comments are optional — continue without them
     }

@@ -211,56 +211,74 @@ export async function getInstagramPosts(handle: string, apiKey: string, count = 
   });
 }
 
-export async function getTikTokVideos(handle: string, apiKey: string, count = 12): Promise<ScrapedPost[]> {
-  const data = await apiCall(`/v3/tiktok/profile/videos?handle=${encodeURIComponent(handle)}`, apiKey);
-  const items = (data.aweme_list as Array<Record<string, unknown>>) || (data.videos as Array<Record<string, unknown>>) || (data.itemList as Array<Record<string, unknown>>) || [];
+// Helper: extract browser-compatible URL from TikTok cover objects
+function extractCoverUrl(val: unknown): string {
+  if (!val) return "";
+  if (typeof val === "string") return val;
+  const obj = val as Record<string, unknown>;
+  const urls = (obj.url_list as string[]) || [];
+  const compatible = urls.find((u) => !u.includes(".heic"));
+  return compatible || urls[0] || "";
+}
 
-  // Log first item structure for debugging
-  if (items[0]) {
-    const firstItem = items[0] as Record<string, unknown>;
-    const firstVideo = (firstItem.video as Record<string, unknown>) || {};
-    console.log("[TikTok Videos] First item keys:", Object.keys(firstItem));
-    console.log("[TikTok Videos] video obj keys:", Object.keys(firstVideo));
-    console.log("[TikTok Videos] video.cover type:", typeof firstVideo.cover, "| video.cover:", JSON.stringify(firstVideo.cover)?.slice(0, 200));
-    console.log("[TikTok Videos] item.cover type:", typeof firstItem.cover, "| item.cover:", JSON.stringify(firstItem.cover)?.slice(0, 200));
-  }
+function parseTikTokVideo(p: Record<string, unknown>, handle: string): ScrapedPost {
+  const stats = (p.stats as Record<string, number>) || (p.statistics as Record<string, number>) || {};
+  const video = (p.video as Record<string, unknown>) || {};
 
-  return items.map((p) => {
-    const stats = (p.stats as Record<string, number>) || (p.statistics as Record<string, number>) || {};
-    const video = (p.video as Record<string, unknown>) || {};
+  const thumbnail = extractCoverUrl(video.dynamic_cover) || extractCoverUrl(video.dynamicCover)
+    || extractCoverUrl(video.cover) || extractCoverUrl(video.origin_cover)
+    || extractCoverUrl(p.cover) || "";
+  const videoId = (p.aweme_id as string) || (p.id as string) || "";
 
-    // TikTok cover fields are objects with { uri, url_list: string[] }
-    // cover/origin_cover return .heic (not supported in most browsers)
-    // dynamic_cover returns .awebp (supported) — prefer this
-    function extractUrl(val: unknown): string {
-      if (!val) return "";
-      if (typeof val === "string") return val;
-      const obj = val as Record<string, unknown>;
-      const urls = (obj.url_list as string[]) || [];
-      // Prefer non-heic URLs (webp, jpeg, png)
-      const compatible = urls.find((u) => !u.includes(".heic"));
-      return compatible || urls[0] || "";
+  return {
+    id: videoId,
+    code: videoId,
+    type: "video",
+    caption: (p.desc as string) || (p.title as string) || "",
+    like_count: stats.diggCount || stats.digg_count || 0,
+    comment_count: stats.commentCount || stats.comment_count || 0,
+    play_count: stats.playCount || stats.play_count || 0,
+    thumbnail,
+    url: `https://www.tiktok.com/@${handle}/video/${videoId}`,
+    taken_at: (p.createTime as number) || (p.create_time as number) || 0,
+  };
+}
+
+// Fetch all TikTok videos from the last N days (paginated)
+export async function getTikTokVideos(handle: string, apiKey: string, daysBack = 30, maxPages = 10): Promise<ScrapedPost[]> {
+  const cutoffTime = Math.floor(Date.now() / 1000) - (daysBack * 24 * 60 * 60);
+  const allVideos: ScrapedPost[] = [];
+  let cursor = "";
+  let page = 0;
+
+  while (page < maxPages) {
+    const params = new URLSearchParams({ handle, sort_by: "latest" });
+    if (cursor) params.set("max_cursor", cursor);
+
+    const data = await apiCall(`/v3/tiktok/profile/videos?${params.toString()}`, apiKey);
+    const items = (data.aweme_list as Array<Record<string, unknown>>) || [];
+
+    if (items.length === 0) break;
+
+    let reachedCutoff = false;
+    for (const item of items) {
+      const createdAt = (item.create_time as number) || (item.createTime as number) || 0;
+      if (createdAt < cutoffTime) {
+        reachedCutoff = true;
+        break;
+      }
+      allVideos.push(parseTikTokVideo(item, handle));
     }
 
-    // Priority: dynamic_cover (awebp) > cover > origin_cover
-    const thumbnail = extractUrl(video.dynamic_cover) || extractUrl(video.dynamicCover)
-      || extractUrl(video.cover) || extractUrl(video.origin_cover)
-      || extractUrl(p.cover) || "";
-    const videoId = (p.aweme_id as string) || (p.id as string) || "";
+    if (reachedCutoff) break;
 
-    return {
-      id: videoId,
-      code: videoId,
-      type: "video",
-      caption: (p.desc as string) || (p.title as string) || "",
-      like_count: stats.diggCount || stats.digg_count || 0,
-      comment_count: stats.commentCount || stats.comment_count || 0,
-      play_count: stats.playCount || stats.play_count || 0,
-      thumbnail,
-      url: `https://www.tiktok.com/@${handle}/video/${videoId}`,
-      taken_at: (p.createTime as number) || (p.create_time as number) || 0,
-    };
-  });
+    const nextCursor = data.max_cursor as string;
+    if (!nextCursor || nextCursor === "0") break;
+    cursor = nextCursor;
+    page++;
+  }
+
+  return allVideos;
 }
 
 // ============================================================
@@ -289,29 +307,51 @@ export async function getInstagramComments(shortcode: string, apiKey: string, co
   });
 }
 
-export async function getTikTokComments(videoUrl: string, apiKey: string, count = 20): Promise<ScrapedComment[]> {
-  // Try with full URL first, then extract video_id as fallback
-  let data: Record<string, unknown>;
-  try {
-    data = await apiCall(`/v1/tiktok/video/comments?url=${encodeURIComponent(videoUrl)}`, apiKey);
-  } catch {
-    // Fallback: extract video ID from URL and try with video_id param
-    const videoId = videoUrl.split("/video/")[1]?.split("?")[0] || "";
-    if (!videoId) return [];
-    data = await apiCall(`/v1/tiktok/video/comments?video_id=${encodeURIComponent(videoId)}`, apiKey);
+// Fetch all TikTok comments for a video (paginated, max limit per video)
+export async function getTikTokComments(videoUrl: string, apiKey: string, maxComments = 100): Promise<ScrapedComment[]> {
+  const allComments: ScrapedComment[] = [];
+  let cursor: number | undefined;
+  const maxPages = Math.ceil(maxComments / 20); // ~20 per page
+
+  for (let page = 0; page < maxPages; page++) {
+    let data: Record<string, unknown>;
+    try {
+      const params = new URLSearchParams({ url: videoUrl });
+      if (cursor !== undefined) params.set("cursor", String(cursor));
+      data = await apiCall(`/v1/tiktok/video/comments?${params.toString()}`, apiKey);
+    } catch {
+      // Fallback: try with video_id
+      const videoId = videoUrl.split("/video/")[1]?.split("?")[0] || "";
+      if (!videoId) break;
+      const params = new URLSearchParams({ video_id: videoId });
+      if (cursor !== undefined) params.set("cursor", String(cursor));
+      data = await apiCall(`/v1/tiktok/video/comments?${params.toString()}`, apiKey);
+    }
+
+    const comments = (data.comments as Array<Record<string, unknown>>) || [];
+    if (comments.length === 0) break;
+
+    for (const c of comments) {
+      if (allComments.length >= maxComments) break;
+      const user = (c.user as Record<string, unknown>) || {};
+      allComments.push({
+        username: (user.unique_id as string) || (user.nickname as string) || "",
+        text: ((c.text as string) || "").slice(0, 300),
+        likes: (c.digg_count as number) || 0,
+        timestamp: (c.create_time as number) || 0,
+      });
+    }
+
+    if (allComments.length >= maxComments) break;
+
+    const hasMore = data.has_more as number;
+    if (!hasMore) break;
+
+    cursor = data.cursor as number;
+    if (cursor === undefined) break;
   }
 
-  const comments = (data.comments as Array<Record<string, unknown>>) || [];
-
-  return comments.slice(0, count).map((c) => {
-    const user = (c.user as Record<string, unknown>) || {};
-    return {
-      username: (user.unique_id as string) || (user.nickname as string) || "",
-      text: ((c.text as string) || "").slice(0, 200),
-      likes: (c.digg_count as number) || 0,
-      timestamp: (c.create_time as number) || 0,
-    };
-  });
+  return allComments;
 }
 
 // ============================================================
