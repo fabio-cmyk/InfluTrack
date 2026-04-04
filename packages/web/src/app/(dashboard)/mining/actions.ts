@@ -149,12 +149,26 @@ export async function createSearch(
 
       // ── INSTAGRAM ──────────────────────────────────────────
       if (platforms.includes("instagram")) {
-        // Combine keywords with BR signal hashtags when region is Brasil
-        const igQuery = isBrasil
-          ? `${BR_SIGNAL_HASHTAGS[0]} ${baseQuery}`
-          : baseQuery;
-        const igResults = await mineInstagramByKeyword(igQuery, apiKey);
+        // Primary search: user keywords (API uses Google Search internally)
+        const igResults = await mineInstagramByKeyword(baseQuery, apiKey);
         allMinedInfluencers.push(...igResults);
+
+        // Secondary search: if Brasil + few results, try with BR hashtag to find more
+        if (isBrasil && igResults.length < 5) {
+          try {
+            const brQuery = `${BR_SIGNAL_HASHTAGS[0]} ${baseQuery}`;
+            const brResults = await mineInstagramByKeyword(brQuery, apiKey);
+            const existingHandles = new Set(allMinedInfluencers.map((r) => r.handle));
+            for (const r of brResults) {
+              if (!existingHandles.has(r.handle)) {
+                allMinedInfluencers.push(r);
+                existingHandles.add(r.handle);
+              }
+            }
+          } catch {
+            // BR secondary search failed, continue with primary results
+          }
+        }
       }
 
       // ── TIKTOK ─────────────────────────────────────────────
@@ -326,8 +340,8 @@ export async function createSearch(
         .from("mining_searches")
         .update({ results_count: count || 0 })
         .eq("id", searchId);
-    } catch {
-      // API call failed, search saved without results
+    } catch (err) {
+      console.error("[Mining] Search failed:", err);
     }
   }
 
