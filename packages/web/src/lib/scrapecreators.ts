@@ -212,8 +212,8 @@ export async function getInstagramPosts(handle: string, apiKey: string, count = 
 }
 
 export async function getTikTokVideos(handle: string, apiKey: string, count = 12): Promise<ScrapedPost[]> {
-  const data = await apiCall(`/v3/tiktok/profile/videos?handle=${encodeURIComponent(handle)}&count=${count}`, apiKey);
-  const items = (data.videos as Array<Record<string, unknown>>) || (data.itemList as Array<Record<string, unknown>>) || (data.data as Array<Record<string, unknown>>) || [];
+  const data = await apiCall(`/v3/tiktok/profile/videos?handle=${encodeURIComponent(handle)}`, apiKey);
+  const items = (data.aweme_list as Array<Record<string, unknown>>) || (data.videos as Array<Record<string, unknown>>) || (data.itemList as Array<Record<string, unknown>>) || [];
 
   return items.map((p) => {
     const stats = (p.stats as Record<string, number>) || (p.statistics as Record<string, number>) || {};
@@ -261,8 +261,8 @@ export async function getInstagramComments(shortcode: string, apiKey: string, co
   });
 }
 
-export async function getTikTokComments(videoId: string, apiKey: string, count = 20): Promise<ScrapedComment[]> {
-  const data = await apiCall(`/v1/tiktok/video/comments?video_id=${encodeURIComponent(videoId)}&count=${count}`, apiKey);
+export async function getTikTokComments(videoUrl: string, apiKey: string, count = 20): Promise<ScrapedComment[]> {
+  const data = await apiCall(`/v1/tiktok/video/comments?url=${encodeURIComponent(videoUrl)}`, apiKey);
   const comments = (data.comments as Array<Record<string, unknown>>) || [];
 
   return comments.slice(0, count).map((c) => {

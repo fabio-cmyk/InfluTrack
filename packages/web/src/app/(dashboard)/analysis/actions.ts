@@ -194,7 +194,7 @@ export async function analyzeProfile(rawHandle: string, platform: string): Promi
       const topPosts = sortedByEngagement.slice(0, 5);
       const commentPromises = topPosts.map((p) =>
         platform === "tiktok"
-          ? getTikTokComments(p.id, apiKey, 20)
+          ? getTikTokComments(p.url, apiKey, 20)
           : getInstagramComments(p.code, apiKey, 20)
       );
       const commentResults = await Promise.all(commentPromises);
