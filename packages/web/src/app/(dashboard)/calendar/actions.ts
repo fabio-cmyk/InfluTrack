@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import type { ScheduledPost, CalendarFilters } from "./types";
+import type { ScheduledPost, CalendarFilters, CalendarCampaign } from "./types";
 
 export async function getScheduledPosts(
   month: number,
@@ -52,6 +52,29 @@ export async function getScheduledPosts(
   }));
 
   return { data: posts };
+}
+
+export async function getCalendarCampaigns(
+  month: number,
+  year: number
+): Promise<CalendarCampaign[]> {
+  const supabase = await createClient();
+
+  const startDate = `${year}-${String(month).padStart(2, "0")}-01`;
+  const endDate = new Date(year, month, 0).toISOString().split("T")[0];
+
+  // Campaigns that overlap with the visible month
+  const { data } = await supabase
+    .from("campaigns")
+    .select("id, name, start_date, end_date, status")
+    .eq("is_archived", false)
+    .not("start_date", "is", null)
+    .not("end_date", "is", null)
+    .lte("start_date", endDate)
+    .gte("end_date", startDate)
+    .order("start_date");
+
+  return (data || []) as CalendarCampaign[];
 }
 
 export async function getCalendarFilters(): Promise<CalendarFilters> {

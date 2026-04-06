@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import {
   startOfMonth,
   endOfMonth,
@@ -11,8 +11,13 @@ import {
   addMonths,
   subMonths,
   isSameMonth,
-  isSameDay,
   isToday,
+  isWithinInterval,
+  parseISO,
+  max as dateMax,
+  min as dateMin,
+  differenceInDays,
+  getDay,
 } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { PageHeader } from "@/components/shared/page-header";
@@ -49,23 +54,47 @@ import {
 } from "lucide-react";
 import {
   getScheduledPosts,
+  getCalendarCampaigns,
   updatePostStatus,
   deleteScheduledPost,
 } from "./actions";
 import { PostFormDialog } from "./post-form-dialog";
-import type { ScheduledPost, CalendarFilters, PostFormat, PostStatus } from "./types";
+import type {
+  ScheduledPost,
+  CalendarCampaign,
+  CalendarFilters,
+  PostFormat,
+  PostStatus,
+} from "./types";
 
-const STATUS_CONFIG: Record<PostStatus, { label: string; variant: "default" | "secondary" | "outline" | "destructive"; dot: string }> = {
+const STATUS_CONFIG: Record<
+  PostStatus,
+  {
+    label: string;
+    variant: "default" | "secondary" | "outline" | "destructive";
+    dot: string;
+  }
+> = {
   scheduled: { label: "Agendado", variant: "secondary", dot: "bg-yellow-400" },
   published: { label: "Publicado", variant: "default", dot: "bg-green-500" },
   missed: { label: "Perdido", variant: "destructive", dot: "bg-red-500" },
   cancelled: { label: "Cancelado", variant: "outline", dot: "bg-gray-400" },
 };
 
+const CAMPAIGN_COLORS = [
+  "bg-blue-500/20 text-blue-700 border-blue-500/40",
+  "bg-emerald-500/20 text-emerald-700 border-emerald-500/40",
+  "bg-violet-500/20 text-violet-700 border-violet-500/40",
+  "bg-amber-500/20 text-amber-700 border-amber-500/40",
+  "bg-rose-500/20 text-rose-700 border-rose-500/40",
+  "bg-cyan-500/20 text-cyan-700 border-cyan-500/40",
+];
+
 const WEEKDAYS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sab"];
 
 interface CalendarClientProps {
   initialPosts: ScheduledPost[];
+  initialCampaigns: CalendarCampaign[];
   filters: CalendarFilters;
   initialMonth: number;
   initialYear: number;
@@ -73,11 +102,13 @@ interface CalendarClientProps {
 
 export function CalendarClient({
   initialPosts,
+  initialCampaigns,
   filters,
   initialMonth,
   initialYear,
 }: CalendarClientProps) {
   const [posts, setPosts] = useState<ScheduledPost[]>(initialPosts);
+  const [campaigns, setCampaigns] = useState<CalendarCampaign[]>(initialCampaigns);
   const [currentDate, setCurrentDate] = useState(
     new Date(initialYear, initialMonth - 1, 1)
   );
@@ -90,15 +121,16 @@ export function CalendarClient({
   const [filterFormat, setFilterFormat] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
 
-  const loadData = useCallback(
-    async (date: Date) => {
-      const m = date.getMonth() + 1;
-      const y = date.getFullYear();
-      const { data } = await getScheduledPosts(m, y);
-      setPosts(data);
-    },
-    []
-  );
+  const loadData = useCallback(async (date: Date) => {
+    const m = date.getMonth() + 1;
+    const y = date.getFullYear();
+    const [postsRes, campaignsRes] = await Promise.all([
+      getScheduledPosts(m, y),
+      getCalendarCampaigns(m, y),
+    ]);
+    setPosts(postsRes.data);
+    setCampaigns(campaignsRes);
+  }, []);
 
   async function navigateMonth(direction: "prev" | "next") {
     const newDate =
@@ -150,6 +182,10 @@ export function CalendarClient({
   const calendarStart = startOfWeek(monthStart);
   const calendarEnd = endOfWeek(monthEnd);
   const days = eachDayOfInterval({ start: calendarStart, end: calendarEnd });
+  const weeks: Date[][] = [];
+  for (let i = 0; i < days.length; i += 7) {
+    weeks.push(days.slice(i, i + 7));
+  }
 
   // Group posts by date
   const postsByDate = new Map<string, ScheduledPost[]>();
@@ -172,7 +208,40 @@ export function CalendarClient({
     if (filtered.length > 0) filteredPostsByDate.set(date, filtered);
   }
 
+  // Build campaign bars per week
+  const campaignBars = useMemo(() => {
+    return weeks.map((week) => {
+      const weekStart = week[0];
+      const weekEnd = week[6];
+      const bars: {
+        campaign: CalendarCampaign;
+        startCol: number;
+        span: number;
+        color: string;
+      }[] = [];
+
+      campaigns.forEach((camp, idx) => {
+        const campStart = parseISO(camp.start_date);
+        const campEnd = parseISO(camp.end_date);
+
+        // Check if campaign overlaps this week
+        if (campEnd < weekStart || campStart > weekEnd) return;
+
+        const visibleStart = dateMax([campStart, weekStart]);
+        const visibleEnd = dateMin([campEnd, weekEnd]);
+        const startCol = getDay(visibleStart);
+        const span = differenceInDays(visibleEnd, visibleStart) + 1;
+        const color = CAMPAIGN_COLORS[idx % CAMPAIGN_COLORS.length];
+
+        bars.push({ campaign: camp, startCol, span, color });
+      });
+
+      return bars;
+    });
+  }, [weeks, campaigns]);
+
   const totalPosts = posts.length;
+  const hasContent = totalPosts > 0 || campaigns.length > 0;
 
   return (
     <div className="space-y-6">
@@ -188,7 +257,10 @@ export function CalendarClient({
 
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-2">
-        <Select value={filterCampaign} onValueChange={(v) => setFilterCampaign(v ?? "")}>
+        <Select
+          value={filterCampaign}
+          onValueChange={(v) => setFilterCampaign(v ?? "")}
+        >
           <SelectTrigger>
             <SelectValue placeholder="Campanha" />
           </SelectTrigger>
@@ -202,7 +274,10 @@ export function CalendarClient({
           </SelectContent>
         </Select>
 
-        <Select value={filterInfluencer} onValueChange={(v) => setFilterInfluencer(v ?? "")}>
+        <Select
+          value={filterInfluencer}
+          onValueChange={(v) => setFilterInfluencer(v ?? "")}
+        >
           <SelectTrigger>
             <SelectValue placeholder="Influencer" />
           </SelectTrigger>
@@ -216,7 +291,10 @@ export function CalendarClient({
           </SelectContent>
         </Select>
 
-        <Select value={filterFormat} onValueChange={(v) => setFilterFormat(v ?? "")}>
+        <Select
+          value={filterFormat}
+          onValueChange={(v) => setFilterFormat(v ?? "")}
+        >
           <SelectTrigger>
             <SelectValue placeholder="Formato" />
           </SelectTrigger>
@@ -234,7 +312,10 @@ export function CalendarClient({
           </SelectContent>
         </Select>
 
-        <Select value={filterStatus} onValueChange={(v) => setFilterStatus(v ?? "")}>
+        <Select
+          value={filterStatus}
+          onValueChange={(v) => setFilterStatus(v ?? "")}
+        >
           <SelectTrigger>
             <SelectValue placeholder="Status" />
           </SelectTrigger>
@@ -248,23 +329,55 @@ export function CalendarClient({
         </Select>
       </div>
 
+      {/* Campaign legend */}
+      {campaigns.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs font-medium text-muted-foreground">
+            Campanhas:
+          </span>
+          {campaigns.map((camp, idx) => {
+            const color = CAMPAIGN_COLORS[idx % CAMPAIGN_COLORS.length];
+            return (
+              <span
+                key={camp.id}
+                className={`inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-medium ${color}`}
+              >
+                {camp.name}
+              </span>
+            );
+          })}
+        </div>
+      )}
+
       {/* Calendar */}
       <Card>
         <CardContent className="p-0">
           {/* Month header */}
           <div className="flex items-center justify-between border-b px-4 py-3">
-            <Button variant="ghost" size="icon" onClick={() => navigateMonth("prev")}>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => navigateMonth("prev")}
+            >
               <ChevronLeft className="h-4 w-4" />
             </Button>
             <h2 className="text-base font-semibold capitalize">
               {format(currentDate, "MMMM yyyy", { locale: ptBR })}
             </h2>
-            <Button variant="ghost" size="icon" onClick={() => navigateMonth("next")}>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => navigateMonth("next")}
+            >
               <ChevronRight className="h-4 w-4" />
             </Button>
           </div>
 
-          {totalPosts === 0 && !filterCampaign && !filterInfluencer && !filterFormat && !filterStatus ? (
+          {!hasContent &&
+          !filterCampaign &&
+          !filterInfluencer &&
+          !filterFormat &&
+          !filterStatus ? (
             <div className="py-8">
               <EmptyState
                 icon={CalendarDays}
@@ -286,61 +399,102 @@ export function CalendarClient({
                 ))}
               </div>
 
-              {/* Day cells */}
-              <div className="grid grid-cols-7">
-                {days.map((day) => {
-                  const dateKey = format(day, "yyyy-MM-dd");
-                  const dayPosts = filteredPostsByDate.get(dateKey) || [];
-                  const inMonth = isSameMonth(day, currentDate);
-                  const today = isToday(day);
-                  const maxVisible = 3;
+              {/* Weeks */}
+              {weeks.map((week, weekIdx) => {
+                const bars = campaignBars[weekIdx] || [];
 
-                  return (
-                    <div
-                      key={dateKey}
-                      className={`min-h-[100px] border-b border-r p-1.5 transition-colors cursor-pointer hover:bg-accent/30 ${
-                        !inMonth ? "bg-muted/30" : ""
-                      }`}
-                      onClick={() => handleDayClick(day)}
-                    >
-                      <div
-                        className={`mb-1 flex h-6 w-6 items-center justify-center rounded-full text-xs font-medium ${
-                          today
-                            ? "bg-primary text-primary-foreground"
-                            : !inMonth
-                              ? "text-muted-foreground/50"
-                              : "text-foreground"
-                        }`}
-                      >
-                        {format(day, "d")}
-                      </div>
-                      <div className="space-y-0.5">
-                        {dayPosts.slice(0, maxVisible).map((post) => (
-                          <button
-                            key={post.id}
-                            type="button"
-                            className="flex w-full items-center gap-1 rounded px-1 py-0.5 text-left text-[11px] leading-tight hover:bg-accent/50 transition-colors"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setDetailPost(post);
+                return (
+                  <div key={weekIdx}>
+                    {/* Campaign bars row */}
+                    {bars.length > 0 && (
+                      <div className="relative grid grid-cols-7 border-b bg-muted/20">
+                        {bars.map((bar) => (
+                          <div
+                            key={bar.campaign.id}
+                            className={`truncate border rounded-md px-1.5 py-0.5 text-[10px] font-medium leading-tight ${bar.color}`}
+                            style={{
+                              gridColumn: `${bar.startCol + 1} / span ${bar.span}`,
                             }}
-                            title={STATUS_CONFIG[post.status].label}
+                            title={`${bar.campaign.name} (${new Date(bar.campaign.start_date + "T12:00:00").toLocaleDateString("pt-BR")} - ${new Date(bar.campaign.end_date + "T12:00:00").toLocaleDateString("pt-BR")})`}
                           >
-                            <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${STATUS_CONFIG[post.status].dot}`} />
-                            <FormatBadge format={post.post_format as PostFormat} showLabel={false} />
-                            <span className="truncate">{post.title}</span>
-                          </button>
-                        ))}
-                        {dayPosts.length > maxVisible && (
-                          <div className="px-1 text-[10px] text-muted-foreground">
-                            +{dayPosts.length - maxVisible} mais
+                            {bar.campaign.name}
                           </div>
-                        )}
+                        ))}
                       </div>
+                    )}
+
+                    {/* Day cells */}
+                    <div className="grid grid-cols-7">
+                      {week.map((day) => {
+                        const dateKey = format(day, "yyyy-MM-dd");
+                        const dayPosts =
+                          filteredPostsByDate.get(dateKey) || [];
+                        const inMonth = isSameMonth(day, currentDate);
+                        const todayFlag = isToday(day);
+                        const maxVisible = 3;
+
+                        return (
+                          <div
+                            key={dateKey}
+                            className={`min-h-[100px] border-b border-r p-1.5 transition-colors cursor-pointer hover:bg-accent/30 ${
+                              !inMonth ? "bg-muted/30" : ""
+                            }`}
+                            onClick={() => handleDayClick(day)}
+                          >
+                            <div
+                              className={`mb-1 flex h-6 w-6 items-center justify-center rounded-full text-xs font-medium ${
+                                todayFlag
+                                  ? "bg-primary text-primary-foreground"
+                                  : !inMonth
+                                    ? "text-muted-foreground/50"
+                                    : "text-foreground"
+                              }`}
+                            >
+                              {format(day, "d")}
+                            </div>
+                            <div className="space-y-0.5">
+                              {dayPosts
+                                .slice(0, maxVisible)
+                                .map((post) => (
+                                  <button
+                                    key={post.id}
+                                    type="button"
+                                    className="flex w-full items-center gap-1 rounded px-1 py-0.5 text-left text-[11px] leading-tight hover:bg-accent/50 transition-colors"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setDetailPost(post);
+                                    }}
+                                    title={
+                                      STATUS_CONFIG[post.status].label
+                                    }
+                                  >
+                                    <span
+                                      className={`h-1.5 w-1.5 shrink-0 rounded-full ${STATUS_CONFIG[post.status].dot}`}
+                                    />
+                                    <FormatBadge
+                                      format={
+                                        post.post_format as PostFormat
+                                      }
+                                      showLabel={false}
+                                    />
+                                    <span className="truncate">
+                                      {post.title}
+                                    </span>
+                                  </button>
+                                ))}
+                              {dayPosts.length > maxVisible && (
+                                <div className="px-1 text-[10px] text-muted-foreground">
+                                  +{dayPosts.length - maxVisible} mais
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
-                  );
-                })}
-              </div>
+                  </div>
+                );
+              })}
             </>
           )}
         </CardContent>
@@ -357,7 +511,10 @@ export function CalendarClient({
       />
 
       {/* Detail dialog */}
-      <Dialog open={!!detailPost} onOpenChange={(open) => !open && setDetailPost(null)}>
+      <Dialog
+        open={!!detailPost}
+        onOpenChange={(open) => !open && setDetailPost(null)}
+      >
         <DialogContent className="sm:max-w-md">
           {detailPost && (
             <>
@@ -370,8 +527,12 @@ export function CalendarClient({
 
               <div className="space-y-3 py-2">
                 <div className="flex items-center gap-2">
-                  <FormatBadge format={detailPost.post_format as PostFormat} />
-                  <Badge variant={STATUS_CONFIG[detailPost.status].variant}>
+                  <FormatBadge
+                    format={detailPost.post_format as PostFormat}
+                  />
+                  <Badge
+                    variant={STATUS_CONFIG[detailPost.status].variant}
+                  >
                     {STATUS_CONFIG[detailPost.status].label}
                   </Badge>
                 </div>
@@ -379,32 +540,42 @@ export function CalendarClient({
                 <div className="grid grid-cols-2 gap-2 text-sm">
                   <div>
                     <span className="text-muted-foreground">Data:</span>{" "}
-                    {new Date(detailPost.scheduled_date + "T12:00:00").toLocaleDateString("pt-BR")}
+                    {new Date(
+                      detailPost.scheduled_date + "T12:00:00"
+                    ).toLocaleDateString("pt-BR")}
                   </div>
                   <div>
                     <span className="text-muted-foreground">Hora:</span>{" "}
                     {detailPost.scheduled_time?.slice(0, 5) || "—"}
                   </div>
                   <div>
-                    <span className="text-muted-foreground">Campanha:</span>{" "}
+                    <span className="text-muted-foreground">
+                      Campanha:
+                    </span>{" "}
                     {detailPost.campaign_name || "—"}
                   </div>
                   <div>
-                    <span className="text-muted-foreground">Influencer:</span>{" "}
+                    <span className="text-muted-foreground">
+                      Influencer:
+                    </span>{" "}
                     {detailPost.influencer_name || "—"}
                   </div>
                 </div>
 
                 {detailPost.description && (
                   <div className="text-sm">
-                    <span className="text-muted-foreground">Descricao:</span>
+                    <span className="text-muted-foreground">
+                      Descricao:
+                    </span>
                     <p className="mt-1">{detailPost.description}</p>
                   </div>
                 )}
 
                 {detailPost.notes && (
                   <div className="text-sm">
-                    <span className="text-muted-foreground">Observacoes:</span>
+                    <span className="text-muted-foreground">
+                      Observacoes:
+                    </span>
                     <p className="mt-1">{detailPost.notes}</p>
                   </div>
                 )}
@@ -417,7 +588,9 @@ export function CalendarClient({
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={() => handleStatusChange(detailPost, "published")}
+                        onClick={() =>
+                          handleStatusChange(detailPost, "published")
+                        }
                       >
                         <CheckCircle2 className="h-3.5 w-3.5 mr-1" />
                         Publicado
@@ -425,7 +598,9 @@ export function CalendarClient({
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={() => handleStatusChange(detailPost, "cancelled")}
+                        onClick={() =>
+                          handleStatusChange(detailPost, "cancelled")
+                        }
                       >
                         <XCircle className="h-3.5 w-3.5 mr-1" />
                         Cancelar
@@ -433,14 +608,20 @@ export function CalendarClient({
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={() => handleStatusChange(detailPost, "missed")}
+                        onClick={() =>
+                          handleStatusChange(detailPost, "missed")
+                        }
                       >
                         <AlertCircle className="h-3.5 w-3.5 mr-1" />
                         Perdido
                       </Button>
                     </>
                   )}
-                  <Button size="sm" variant="outline" onClick={() => handleEditPost(detailPost)}>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleEditPost(detailPost)}
+                  >
                     <Pencil className="h-3.5 w-3.5 mr-1" />
                     Editar
                   </Button>

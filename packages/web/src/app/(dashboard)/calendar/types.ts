@@ -27,6 +27,14 @@ export type ScheduledPost = {
   created_at: string;
 };
 
+export type CalendarCampaign = {
+  id: string;
+  name: string;
+  start_date: string;
+  end_date: string;
+  status: string;
+};
+
 export type CalendarFilters = {
   campaigns: { id: string; name: string }[];
   influencers: { id: string; name: string }[];
