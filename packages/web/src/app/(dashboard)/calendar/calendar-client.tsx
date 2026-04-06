@@ -55,11 +55,11 @@ import {
 import { PostFormDialog } from "./post-form-dialog";
 import type { ScheduledPost, CalendarFilters, PostFormat, PostStatus } from "./types";
 
-const STATUS_CONFIG: Record<PostStatus, { label: string; variant: "default" | "secondary" | "outline" | "destructive" }> = {
-  scheduled: { label: "Agendado", variant: "secondary" },
-  published: { label: "Publicado", variant: "default" },
-  missed: { label: "Perdido", variant: "destructive" },
-  cancelled: { label: "Cancelado", variant: "outline" },
+const STATUS_CONFIG: Record<PostStatus, { label: string; variant: "default" | "secondary" | "outline" | "destructive"; dot: string }> = {
+  scheduled: { label: "Agendado", variant: "secondary", dot: "bg-yellow-400" },
+  published: { label: "Publicado", variant: "default", dot: "bg-green-500" },
+  missed: { label: "Perdido", variant: "destructive", dot: "bg-red-500" },
+  cancelled: { label: "Cancelado", variant: "outline", dot: "bg-gray-400" },
 };
 
 const WEEKDAYS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sab"];
@@ -324,7 +324,9 @@ export function CalendarClient({
                               e.stopPropagation();
                               setDetailPost(post);
                             }}
+                            title={STATUS_CONFIG[post.status].label}
                           >
+                            <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${STATUS_CONFIG[post.status].dot}`} />
                             <FormatBadge format={post.post_format as PostFormat} showLabel={false} />
                             <span className="truncate">{post.title}</span>
                           </button>
