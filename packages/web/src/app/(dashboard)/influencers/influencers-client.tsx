@@ -1,0 +1,158 @@
+"use client";
+
+import { useState, useCallback } from "react";
+import Link from "next/link";
+import { PageHeader } from "@/components/shared/page-header";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import {
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+} from "@/components/ui/table";
+import { Card, CardContent } from "@/components/ui/card";
+import { UserPlus, Search, Archive, Users } from "lucide-react";
+import { EmptyState } from "@/components/shared/empty-state";
+import { getInfluencers, getNiches, archiveInfluencer, type Influencer } from "./actions";
+import { InfluencerFormModal } from "./influencer-form";
+
+interface InfluencersClientProps {
+  initialInfluencers: Influencer[];
+  initialNiches: string[];
+}
+
+export function InfluencersClient({ initialInfluencers, initialNiches }: InfluencersClientProps) {
+  const [influencers, setInfluencers] = useState<Influencer[]>(initialInfluencers);
+  const [niches] = useState<string[]>(initialNiches);
+  const [search, setSearch] = useState("");
+  const [selectedNiche, setSelectedNiche] = useState("");
+  const [formOpen, setFormOpen] = useState(false);
+
+  const loadData = useCallback(async (s?: string, n?: string) => {
+    const [infResult] = await Promise.all([
+      getInfluencers(s, n),
+    ]);
+    setInfluencers(infResult.data);
+  }, []);
+
+  function handleSearch() {
+    loadData(search || undefined, selectedNiche || undefined);
+  }
+
+  async function handleArchive(id: string) {
+    await archiveInfluencer(id);
+    setInfluencers(influencers.filter(i => i.id !== id));
+  }
+
+  function getMainHandle(inf: Influencer): string {
+    return inf.instagram_handle || inf.tiktok_handle || inf.youtube_handle || "—";
+  }
+
+  return (
+    <div className="space-y-6">
+      <PageHeader title="Influencers" description="Gerencie seus influencers">
+        <Button onClick={() => setFormOpen(true)}>
+          <UserPlus className="h-4 w-4 mr-2" />
+          Adicionar Influencer
+        </Button>
+      </PageHeader>
+
+      {/* Search and Filter */}
+      <div className="flex gap-3">
+        <div className="relative flex-1 max-w-sm">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Buscar por nome ou handle..."
+            className="pl-9"
+            onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+          />
+        </div>
+        <select
+          value={selectedNiche}
+          onChange={(e) => {
+            setSelectedNiche(e.target.value);
+            loadData(search || undefined, e.target.value || undefined);
+          }}
+          className="flex h-10 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background"
+        >
+          <option value="">Todos os nichos</option>
+          {niches.map((n) => (
+            <option key={n} value={n}>{n}</option>
+          ))}
+        </select>
+        <Button variant="outline" onClick={handleSearch}>
+          Buscar
+        </Button>
+      </div>
+
+      {/* Table */}
+      {influencers.length === 0 ? (
+        <Card>
+          <CardContent className="py-8">
+            <EmptyState icon={Users} title="Nenhum influencer cadastrado" description="Adicione influencers para comecar a rastrear vendas." />
+          </CardContent>
+        </Card>
+      ) : (
+        <Card>
+          <CardContent className="p-0">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Nome</TableHead>
+                  <TableHead>Handle</TableHead>
+                  <TableHead>Tamanho</TableHead>
+                  <TableHead>Cupom</TableHead>
+                  <TableHead>Comissao</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="w-[80px]">Acoes</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {influencers.map((inf) => (
+                  <TableRow key={inf.id}>
+                    <TableCell>
+                      <Link href={`/influencers/${inf.id}`} className="font-medium text-primary hover:underline">
+                        {inf.name}
+                      </Link>
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">{getMainHandle(inf)}</TableCell>
+                    <TableCell>
+                      {inf.size ? (
+                        <Badge variant="outline" className="uppercase text-xs">{inf.size}</Badge>
+                      ) : "—"}
+                    </TableCell>
+                    <TableCell>
+                      <code className="rounded bg-muted px-1.5 py-0.5 text-xs">{inf.coupon_code}</code>
+                    </TableCell>
+                    <TableCell className="text-sm">
+                      {inf.commission_rate > 0
+                        ? inf.commission_type === "percentage" ? `${inf.commission_rate}%` : `R$ ${inf.commission_rate}`
+                        : "—"}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={inf.status === "active" ? "default" : "secondary"} className="text-xs">
+                        {inf.status === "active" ? "Ativa" : "Inativa"}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <Button variant="ghost" size="icon" onClick={() => handleArchive(inf.id)} title="Arquivar">
+                        <Archive className="h-4 w-4 text-muted-foreground" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      )}
+
+      <InfluencerFormModal
+        open={formOpen}
+        onOpenChange={setFormOpen}
+        onSuccess={() => loadData(search || undefined, selectedNiche || undefined)}
+      />
+    </div>
+  );
+}

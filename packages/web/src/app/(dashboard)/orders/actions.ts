@@ -52,40 +52,39 @@ export async function getOrders(filters?: {
   if (error) return { data: [], error: error.message };
   if (!orders?.length) return { data: [] };
 
-  // Get attributions for these orders
   const orderIds = orders.map((o) => o.id);
-  const { data: attributions } = await supabase
-    .from("order_attributions")
-    .select("order_id, influencer_id, campaign_id")
-    .in("order_id", orderIds);
 
-  // Get influencer names
-  const influencerIds = [...new Set((attributions || []).map((a) => a.influencer_id))];
-  const { data: influencers } = influencerIds.length > 0
-    ? await supabase.from("influencers").select("id, name").in("id", influencerIds)
-    : { data: [] };
-  const infMap = new Map((influencers || []).map((i) => [i.id, i.name]));
+  // Parallelize ALL follow-up queries
+  const [attributionsRes, itemCountsRes] = await Promise.all([
+    supabase.from("order_attributions").select("order_id, influencer_id, campaign_id").in("order_id", orderIds),
+    supabase.from("order_items").select("order_id").in("order_id", orderIds),
+  ]);
 
-  // Get campaign names
-  const campaignIds = [...new Set((attributions || []).filter((a) => a.campaign_id).map((a) => a.campaign_id!))];
-  const { data: campaigns } = campaignIds.length > 0
-    ? await supabase.from("campaigns").select("id, name").in("id", campaignIds)
-    : { data: [] };
-  const campMap = new Map((campaigns || []).map((c) => [c.id, c.name]));
+  const attributions = attributionsRes.data || [];
 
-  // Get item counts
-  const { data: itemCounts } = await supabase
-    .from("order_items")
-    .select("order_id")
-    .in("order_id", orderIds);
+  // Get unique IDs for name lookups
+  const influencerIds = [...new Set(attributions.map((a) => a.influencer_id))];
+  const campaignIds = [...new Set(attributions.filter((a) => a.campaign_id).map((a) => a.campaign_id!))];
+
+  // Parallel name lookups
+  const [influencersRes, campaignsRes] = await Promise.all([
+    influencerIds.length > 0
+      ? supabase.from("influencers").select("id, name").in("id", influencerIds)
+      : Promise.resolve({ data: [] as { id: string; name: string }[] }),
+    campaignIds.length > 0
+      ? supabase.from("campaigns").select("id, name").in("id", campaignIds)
+      : Promise.resolve({ data: [] as { id: string; name: string }[] }),
+  ]);
+
+  const infMap = new Map((influencersRes.data || []).map((i) => [i.id, i.name]));
+  const campMap = new Map((campaignsRes.data || []).map((c) => [c.id, c.name]));
 
   const countMap = new Map<string, number>();
-  (itemCounts || []).forEach((ic) => {
+  (itemCountsRes.data || []).forEach((ic) => {
     countMap.set(ic.order_id, (countMap.get(ic.order_id) || 0) + 1);
   });
 
-  // Attribution map
-  const attrMap = new Map((attributions || []).map((a) => [a.order_id, a]));
+  const attrMap = new Map(attributions.map((a) => [a.order_id, a]));
 
   const result: Order[] = orders.map((o) => {
     const attr = attrMap.get(o.id);
