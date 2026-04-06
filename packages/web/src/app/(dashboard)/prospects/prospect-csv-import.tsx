@@ -40,6 +40,8 @@ function parseCSVLine(line: string): string[] {
 
 function parseBRL(v: string): number | null {
   if (!v) return null;
+  // Only parse if it looks like a number or currency (R$ prefix, digits with comma/dot)
+  if (!/^[\s]*R?\$?\s*[\d.,]+\s*$/.test(v.trim()) && !/^[\d.,]+$/.test(v.trim())) return null;
   const cleaned = v
     .replace(/R\$\s?/g, "")
     .replace(/\./g, "")

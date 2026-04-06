@@ -23,13 +23,13 @@ CREATE TABLE public.influencer_prospects (
   budget_stories_seq      DECIMAL(12,2) CHECK (budget_stories_seq >= 0),
   budget_reels_stories    DECIMAL(12,2) CHECK (budget_reels_stories >= 0),
   cost_per_story_view     DECIMAL(10,4) CHECK (cost_per_story_view >= 0),
-  story_engagement_rate   DECIMAL(5,2) CHECK (story_engagement_rate >= 0 AND story_engagement_rate <= 100),
+  story_engagement_rate   DECIMAL(5,2) CHECK (story_engagement_rate >= 0),
 
   -- Metrics: Reels
   avg_reel_views          INTEGER CHECK (avg_reel_views >= 0),
   budget_reels            DECIMAL(12,2) CHECK (budget_reels >= 0),
   cost_per_reel_view      DECIMAL(10,4) CHECK (cost_per_reel_view >= 0),
-  reel_engagement_rate    DECIMAL(5,2) CHECK (reel_engagement_rate >= 0 AND reel_engagement_rate <= 100),
+  reel_engagement_rate    DECIMAL(5,2) CHECK (reel_engagement_rate >= 0),
 
   -- Negotiation
   agreed_value            DECIMAL(12,2) CHECK (agreed_value >= 0),
